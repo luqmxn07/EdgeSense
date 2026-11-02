@@ -1,0 +1,192 @@
+/* ==========================================================================
+   EdgeSense Responsive Design Adaptations
+   Breakpoints: Large Desktop, Laptop, Tablet, Mobile
+   ========================================================================== */
+
+/* Laptop & Medium Screens (< 1280px) */
+@media (max-width: 1280px) {
+  .sensor-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .overview-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .machine-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .system-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet Screens (< 992px) */
+@media (max-width: 992px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  .content-area {
+    padding: 16px;
+  }
+
+  .health-hero-card {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .health-desc-col {
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+    padding-left: 0;
+    padding-top: 14px;
+  }
+
+  .health-metrics-quick {
+    align-self: flex-start;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-controls-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .analytics-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .alerts-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input-wrapper {
+    width: 100%;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+}
+
+/* Mobile Screens (< 768px) */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Off-canvas sidebar */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    transform: translateX(-100%);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+    transition: transform var(--transition-normal);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Backdrop overlay */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 90;
+  }
+
+  .sidebar-backdrop.active {
+    display: block;
+  }
+
+  .top-header {
+    padding: 0 14px;
+  }
+
+  .header-timestamp {
+    display: none;
+  }
+
+  .demo-preset-pill {
+    display: none;
+  }
+
+  .header-breadcrumbs {
+    display: none;
+  }
+
+  .sensor-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .axis-gauges-container {
+    grid-template-columns: 1fr;
+  }
+
+  .architecture-flow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .arch-flow-arrow {
+    transform: rotate(90deg);
+    padding: 4px 0;
+  }
+
+  .settings-footer-actions {
+    flex-direction: column-reverse;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .settings-footer-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .chart-wrapper {
+    height: 220px;
+  }
+
+  .demo-notice-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .sidebar, .top-header, .header-actions, .banner-action-btn, .time-range-group {
+    display: none !important;
+  }
+
+  .app-container {
+    display: block;
+    height: auto;
+  }
+
+  .content-area {
+    overflow: visible;
+  }
+
+  .card {
+    border: 1px solid #ccc;
+    box-shadow: none;
+  }
+}

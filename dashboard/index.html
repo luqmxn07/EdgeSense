@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EdgeSense — Machine Health Monitoring & Anomaly Detection System</title>
+  <meta name="description" content="An Intelligent IoT-Based Machine Health Monitoring and Anomaly Detection System Using ESP32, MPU6050 vibration analysis, and DS18B20 temperature telemetry.">
+  
+  <!-- Favicon / Logo -->
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+
+  <!-- Core Stylesheets -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+
+  <!-- Chart.js 4.4.1 UMD -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Backdrop for mobile sidebar drawer -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- ====================================================================
+         A. LEFT SIDEBAR
+         ==================================================================== -->
+    <aside class="sidebar" id="mainSidebar">
+      <div class="sidebar-header">
+        <a href="#" class="brand-wrapper">
+          <img src="assets/logo.svg" alt="EdgeSense Logo" class="brand-logo">
+          <div class="brand-text">
+            <div class="brand-title">Edge<span>Sense</span></div>
+            <div class="brand-subtitle">Machine Health IoT</div>
+          </div>
+        </a>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Monitoring</div>
+        <a href="#" class="nav-item active" data-target-view="view-overview" id="navItemOverview">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#" class="nav-item" data-target-view="view-machine" id="navItemMachine">
+          <i data-lucide="cpu"></i>
+          <span>Machine Monitoring</span>
+        </a>
+        <a href="#" class="nav-item" data-target-view="view-analytics" id="navItemAnalytics">
+          <i data-lucide="line-chart"></i>
+          <span>Live Analytics</span>
+        </a>
+
+        <div class="nav-section-label">Diagnostics</div>
+        <a href="#" class="nav-item" data-target-view="view-alerts" id="navItemAlerts">
+          <i data-lucide="alert-triangle"></i>
+          <span>Alert History</span>
+          <span class="badge" id="sidebarAlertBadge" style="display: none;">0</span>
+        </a>
+        <a href="#" class="nav-item" data-target-view="view-system" id="navItemSystem">
+          <i data-lucide="server"></i>
+          <span>System Information</span>
+        </a>
+
+        <div class="nav-section-label">Configuration</div>
+        <a href="#" class="nav-item" data-target-view="view-settings" id="navItemSettings">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-status-indicator">
+          <div class="status-label-group">
+            <span class="status-dot healthy pulse" id="sidebarStatusDot"></span>
+            <span style="font-weight: 600; color: var(--text-primary);" id="sidebarStatusText">Demo Mode</span>
+          </div>
+          <span class="version-tag">v1.0.0-demo</span>
+        </div>
+        <div class="system-meta-row">
+          <span>Target: MOTOR_01</span>
+          <span>ESP32 Node</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ====================================================================
+         B. MAIN WRAPPER & TOP HEADER
+         ==================================================================== -->
+    <div class="main-wrapper">
+      
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobileMenuToggle" aria-label="Toggle navigation menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <div class="header-title-group">
+            <h1 class="page-title" id="headerPageTitle">Overview & Machine Health</h1>
+            <div class="header-breadcrumbs">
+              <span>MOTOR_01</span>
+              <span class="separator">/</span>
+              <span id="headerBreadcrumbView">Overview</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Operational Mode Badge (Never fakes real ESP32 connection in demo mode) -->
+          <div class="mode-badge demo" id="headerModeBadge">
+            <span class="status-dot healthy pulse" style="width: 6px; height: 6px;"></span>
+            DEMO MODE (SIMULATED)
+          </div>
+
+          <!-- Machine ID Chip -->
+          <div class="machine-chip">
+            <span class="chip-label">Node:</span>
+            <span id="headerMachineId">MOTOR_01</span>
+          </div>
+
+          <!-- Quick Simulation Scenario Selector (Helpful during Mentor Evaluation) -->
+          <div class="demo-preset-pill" title="Switch simulation scenario for UI demonstration">
+            <i data-lucide="sliders" style="width: 14px; height: 14px; color: var(--cyan-accent);"></i>
+            <span>Simulate:</span>
+            <select class="demo-preset-select" id="headerDemoScenarioSelect">
+              <option value="NORMAL">Normal Operation</option>
+              <option value="WARNING_VIBRATION">High Vibration (Warn)</option>
+              <option value="CRITICAL_VIBRATION">Bearing Looseness (Crit)</option>
+              <option value="OVERHEATING">Stator Overheating</option>
+              <option value="SENSOR_FAULT">Sensor Disconnect</option>
+            </select>
+          </div>
+
+          <!-- Last Updated Timestamp -->
+          <div class="header-timestamp" title="Last data update timestamp">
+            <i data-lucide="clock" style="width: 13px; height: 13px;"></i>
+            <span id="headerTimestamp">--:--:--</span>
+          </div>
+
+          <!-- Header Actions -->
+          <div class="header-actions">
+            <button class="icon-btn" id="headerRefreshBtn" title="Request telemetry update">
+              <i data-lucide="rotate-cw"></i>
+            </button>
+            <button class="icon-btn" id="headerNotifyBtn" title="View active alerts">
+              <i data-lucide="bell"></i>
+              <span class="notify-badge" id="headerNotifyBadge" style="display: none;">0</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ====================================================================
+           MAIN CONTENT AREA
+           ==================================================================== -->
+      <main class="content-area">
+
+        <!-- ================================================================
+             VIEW 1: OVERVIEW PAGE
+             ================================================================ -->
+        <section class="page-view active" id="view-overview">
+          
+          <!-- Demonstration Notice Banner -->
+          <div class="demo-notice-banner">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <i data-lucide="info" style="color: var(--cyan-accent); width: 18px; height: 18px; flex-shrink: 0;"></i>
+              <span><strong>DEMO MODE ACTIVE:</strong> Dashboard is currently displaying simulated sensor data for DC Motor evaluation. Real ESP32 integration layer is configured and ready.</span>
+            </div>
+            <a href="#" class="banner-action-btn" data-jump-view="view-settings">Configure ESP32 Link</a>
+          </div>
+
+          <!-- 5.1 Machine Health Status Card -->
+          <div class="health-hero-card" id="healthHeroCard">
+            <div class="health-status-col">
+              <div class="health-machine-id">
+                <i data-lucide="tag" style="width: 13px; height: 13px;"></i>
+                Machine ID: MOTOR_01
+              </div>
+              <div class="health-status-badge healthy" id="healthStatusBadge">
+                <span class="status-dot healthy" style="width: 10px; height: 10px;"></span>
+                HEALTHY
+              </div>
+            </div>
+
+            <div class="health-desc-col">
+              <div class="health-desc-title">Operating Condition Assessment</div>
+              <div class="health-desc-text" id="healthStatusDesc">
+                Machine operating within its established baseline.
+              </div>
+            </div>
+
+            <div class="health-metrics-quick">
+              <div class="quick-metric-box">
+                <span class="quick-metric-label">Vibration RMS</span>
+                <span class="quick-metric-val" id="heroQuickRms">0.082 g</span>
+              </div>
+              <div class="quick-metric-box">
+                <span class="quick-metric-label">Casing Temp</span>
+                <span class="quick-metric-val" id="heroQuickTemp" style="color: #F59E0B;">33.2 °C</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.2 Sensor Overview Cards Grid -->
+          <div class="sensor-cards-grid">
+            
+            <!-- Card 1: Vibration Monitoring -->
+            <div class="sensor-card">
+              <div class="sensor-card-top">
+                <div class="sensor-name-group">
+                  <span class="sensor-type-tag">MPU6050 3-Axis</span>
+                  <h3 class="sensor-card-title">Vibration Monitoring</h3>
+                </div>
+                <div class="sensor-icon-pill">
+                  <i data-lucide="activity"></i>
+                </div>
+              </div>
+              <div class="sensor-primary-val">
+                <span class="val-large" id="cardVibRmsVal">0.082</span>
+                <span class="val-unit">g RMS</span>
+              </div>
+              <div class="sensor-meta-grid">
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">Baseline RMS</span>
+                  <span class="meta-item-value" id="cardVibBaseVal">0.080 g</span>
+                </div>
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">Max Recorded</span>
+                  <span class="meta-item-value" id="cardVibMaxVal">0.085 g</span>
+                </div>
+              </div>
+              <span class="sensor-status-tag healthy" id="cardVibStatusTag">HEALTHY</span>
+            </div>
+
+            <!-- Card 2: Temperature Monitoring -->
+            <div class="sensor-card">
+              <div class="sensor-card-top">
+                <div class="sensor-name-group">
+                  <span class="sensor-type-tag">DS18B20 1-Wire</span>
+                  <h3 class="sensor-card-title">Temperature Monitoring</h3>
+                </div>
+                <div class="sensor-icon-pill" style="color: #F59E0B;">
+                  <i data-lucide="thermometer"></i>
+                </div>
+              </div>
+              <div class="sensor-primary-val">
+                <span class="val-large" id="cardTempVal" style="color: #F59E0B;">33.2</span>
+                <span class="val-unit">°C</span>
+              </div>
+              <div class="sensor-meta-grid">
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">Warn Threshold</span>
+                  <span class="meta-item-value" id="cardTempThresholdVal">45.0 °C</span>
+                </div>
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">Thermal Trend</span>
+                  <span class="meta-item-value" id="cardTempTrendVal">STABLE</span>
+                </div>
+              </div>
+              <span class="sensor-status-tag healthy" id="cardTempStatusTag">HEALTHY</span>
+            </div>
+
+            <!-- Card 3: System Information -->
+            <div class="sensor-card">
+              <div class="sensor-card-top">
+                <div class="sensor-name-group">
+                  <span class="sensor-type-tag">ESP32 Core</span>
+                  <h3 class="sensor-card-title">System Information</h3>
+                </div>
+                <div class="sensor-icon-pill" style="color: #818CF8;">
+                  <i data-lucide="hard-drive"></i>
+                </div>
+              </div>
+              <div class="sensor-primary-val">
+                <span class="val-large" id="cardSysDeviceId" style="font-size: 1.25rem;">ESP32-NODE-01</span>
+              </div>
+              <div class="sensor-meta-grid">
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">ESP32 Status</span>
+                  <span class="meta-item-value" id="cardSysEspStatus">SIMULATED (DEMO)</span>
+                </div>
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">System Uptime</span>
+                  <span class="meta-item-value" id="cardSysUptime">14h 32m</span>
+                </div>
+              </div>
+              <span class="sensor-status-tag healthy" id="cardSysLastUpdate">Active (Demo)</span>
+            </div>
+
+            <!-- Card 4: Anomaly Detection -->
+            <div class="sensor-card">
+              <div class="sensor-card-top">
+                <div class="sensor-name-group">
+                  <span class="sensor-type-tag">Edge Statistical</span>
+                  <h3 class="sensor-card-title">Anomaly Detection</h3>
+                </div>
+                <div class="sensor-icon-pill" style="color: var(--cyan-accent);">
+                  <i data-lucide="shield-check"></i>
+                </div>
+              </div>
+              <div class="sensor-primary-val">
+                <span class="val-large" id="cardAnomalyStatusVal" style="font-size: 1.3rem;">NORMAL</span>
+              </div>
+              <div class="sensor-meta-grid">
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">Anomaly Score</span>
+                  <span class="meta-item-value" id="cardAnomalyScoreVal">0.24 σ</span>
+                </div>
+                <div class="sensor-meta-item">
+                  <span class="meta-item-label">Detected Alerts</span>
+                  <span class="meta-item-value" id="cardAnomalyAlertsVal">3</span>
+                </div>
+              </div>
+              <span class="sensor-status-tag healthy" id="cardAnomalyMethodVal">3-Sigma Z-Score</span>
+            </div>
+
+          </div>
+
+          <!-- Bottom Row: Telemetry Trend Preview + Recent Alerts -->
+          <div class="overview-bottom-grid">
+            <!-- Mini Telemetry Trend Card -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon">
+                    <i data-lucide="trending-up"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Telemetry Trend Preview (Last 15 Min)</h3>
+                    <span class="card-subtitle">Real-time vector vibration RMS vs motor casing temperature</span>
+                  </div>
+                </div>
+                <a href="#" class="banner-action-btn" data-jump-view="view-analytics">Full Analytics →</a>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="overviewTelemetryChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Recent Alerts Card -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon" style="color: #F59E0B;">
+                    <i data-lucide="alert-circle"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Recent Anomaly Events</h3>
+                    <span class="card-subtitle">Live incident records & threshold events</span>
+                  </div>
+                </div>
+                <a href="#" class="banner-action-btn" data-jump-view="view-alerts">View Log →</a>
+              </div>
+              <div id="overviewRecentAlertsList" style="margin-top: 10px;">
+                <!-- Dynamically populated by alerts.js -->
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             VIEW 2: MACHINE MONITORING PAGE
+             ================================================================ -->
+        <section class="page-view" id="view-machine">
+          <div class="machine-detail-grid">
+            
+            <!-- Left: Motor Schematic & Sensor Mapping -->
+            <div class="motor-diagram-card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon">
+                    <i data-lucide="cpu"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">DC Motor Sensor Attachment Topography</h3>
+                    <span class="card-subtitle">Physical telemetry node mounting positions on MOTOR_01</span>
+                  </div>
+                </div>
+                <span class="mode-badge demo" style="font-size: 0.68rem;">Interactive Diagram</span>
+              </div>
+
+              <!-- SVG Motor Schematic with Sensor Attachment Pins -->
+              <div class="motor-svg-container">
+                <svg viewBox="0 0 700 240" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <!-- Motor Mounting Base Plate -->
+                  <rect x="120" y="190" width="460" height="20" rx="4" fill="#151F30" stroke="#1E293B" stroke-width="2"/>
+                  <rect x="150" y="195" width="20" height="10" rx="2" fill="#080D18"/>
+                  <rect x="530" y="195" width="20" height="10" rx="2" fill="#080D18"/>
+
+                  <!-- Output Drive Shaft -->
+                  <rect x="40" y="105" width="110" height="30" rx="3" fill="#334155" stroke="#475569" stroke-width="2"/>
+                  <line x1="60" y1="105" x2="60" y2="135" stroke="#64748B" stroke-width="2"/>
+                  <line x1="80" y1="105" x2="80" y2="135" stroke="#64748B" stroke-width="2"/>
+
+                  <!-- Drive End Bearing Housing -->
+                  <rect x="150" y="80" width="55" height="80" rx="6" fill="#1E293B" stroke="#3B82F6" stroke-width="2"/>
+
+                  <!-- Main Stator Body / Casing -->
+                  <rect x="205" y="60" width="280" height="120" rx="10" fill="#101827" stroke="#1E293B" stroke-width="2.5"/>
+                  
+                  <!-- Motor Cooling Fins -->
+                  <line x1="235" y1="60" x2="235" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="265" y1="60" x2="265" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="295" y1="60" x2="295" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="325" y1="60" x2="325" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="355" y1="60" x2="355" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="385" y1="60" x2="385" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="415" y1="60" x2="415" y2="180" stroke="#1E293B" stroke-width="3"/>
+                  <line x1="445" y1="60" x2="445" y2="180" stroke="#1E293B" stroke-width="3"/>
+
+                  <!-- Commutator / Rear End Cap -->
+                  <rect x="485" y="80" width="60" height="80" rx="6" fill="#1E293B" stroke="#334155" stroke-width="2"/>
+
+                  <!-- SENSOR 1: MPU6050 (Mounted on Drive-End Bearing) -->
+                  <g class="sensor-node-tag">
+                    <rect x="155" y="32" width="45" height="34" rx="4" fill="#0E1624" stroke="#22D3EE" stroke-width="2"/>
+                    <text x="177" y="52" fill="#22D3EE" font-size="10" font-family="'JetBrains Mono', monospace" font-weight="700" text-anchor="middle">MPU</text>
+                    <line x1="177" y1="66" x2="177" y2="80" stroke="#22D3EE" stroke-width="2" stroke-dasharray="2 2"/>
+                    <circle id="motorSvgMpuPin" cx="177" cy="80" r="5" fill="#22D3EE">
+                      <animate attributeName="r" values="4;7;4" dur="2s" repeatCount="indefinite"/>
+                    </circle>
+                  </g>
+
+                  <!-- SENSOR 2: DS18B20 (Mounted on Stator Mid-Casing) -->
+                  <g class="sensor-node-tag">
+                    <rect x="330" y="16" width="50" height="34" rx="4" fill="#0E1624" stroke="#F59E0B" stroke-width="2"/>
+                    <text x="355" y="36" fill="#F59E0B" font-size="10" font-family="'JetBrains Mono', monospace" font-weight="700" text-anchor="middle">DS18B</text>
+                    <line x1="355" y1="50" x2="355" y2="60" stroke="#F59E0B" stroke-width="2" stroke-dasharray="2 2"/>
+                    <circle id="motorSvgDsPin" cx="355" cy="60" r="5" fill="#10B981">
+                      <animate attributeName="r" values="4;7;4" dur="2.2s" repeatCount="indefinite"/>
+                    </circle>
+                  </g>
+
+                  <!-- Telemetry Node: ESP32 Processing Unit -->
+                  <rect x="570" y="85" width="85" height="70" rx="6" fill="#151F30" stroke="#3B82F6" stroke-width="2"/>
+                  <text x="612" y="115" fill="#F8FAFC" font-size="11" font-family="'JetBrains Mono', monospace" font-weight="700" text-anchor="middle">ESP32</text>
+                  <text x="612" y="132" fill="#94A3B8" font-size="9" text-anchor="middle">Edge Node</text>
+
+                  <!-- Wi-Fi Waves from ESP32 -->
+                  <path d="M 640 92 Q 650 82, 660 92" stroke="#22D3EE" stroke-width="1.8" fill="none" opacity="0.8"/>
+                  <path d="M 636 86 Q 650 72, 664 86" stroke="#22D3EE" stroke-width="1.8" fill="none" opacity="0.6"/>
+                </svg>
+              </div>
+
+              <!-- 3-Axis Vibration Gauges Section -->
+              <div>
+                <h4 style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em;">3-Axis Acceleration Breakdown (MPU6050)</h4>
+                <div class="axis-gauges-container">
+                  <div class="axis-gauge-box">
+                    <span class="axis-gauge-label">X-Axis (Radial)</span>
+                    <span class="axis-gauge-val" id="gaugeXRms">0.052 g</span>
+                    <div class="axis-meter-bar">
+                      <div class="axis-meter-fill" id="barXRms" style="width: 25%;"></div>
+                    </div>
+                  </div>
+
+                  <div class="axis-gauge-box">
+                    <span class="axis-gauge-label">Y-Axis (Radial-Y)</span>
+                    <span class="axis-gauge-val" id="gaugeYRms">0.048 g</span>
+                    <div class="axis-meter-bar">
+                      <div class="axis-meter-fill" id="barYRms" style="width: 22%; background-color: #818CF8;"></div>
+                    </div>
+                  </div>
+
+                  <div class="axis-gauge-box">
+                    <span class="axis-gauge-label">Z-Axis (Axial)</span>
+                    <span class="axis-gauge-val" id="gaugeZRms">0.042 g</span>
+                    <div class="axis-meter-bar">
+                      <div class="axis-meter-fill" id="barZRms" style="width: 18%; background-color: #C084FC;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sensor Availability Table -->
+              <div>
+                <h4 style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">Sensor Hardware Bus Status</h4>
+                <table class="sensor-status-table">
+                  <thead>
+                    <tr>
+                      <th>Device / Sensor</th>
+                      <th>Bus Interface</th>
+                      <th>Measured Metric</th>
+                      <th>Channel Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>MPU6050</strong></td>
+                      <td>I2C (Address 0x68)</td>
+                      <td>3-Axis Acceleration (RMS)</td>
+                      <td id="sensorStatusMpu"><span class="sensor-status-tag healthy">ONLINE</span></td>
+                    </tr>
+                    <tr>
+                      <td><strong>DS18B20</strong></td>
+                      <td>Dallas 1-Wire (GPIO 4)</td>
+                      <td>Motor Casing Temp (°C)</td>
+                      <td id="sensorStatusDs"><span class="sensor-status-tag healthy">ONLINE</span></td>
+                    </tr>
+                    <tr>
+                      <td><strong>ESP32 Microcontroller</strong></td>
+                      <td>Wi-Fi 802.11 b/g/n</td>
+                      <td>Edge RMS & Z-Score Anomaly</td>
+                      <td id="sensorStatusEsp"><span class="sensor-status-tag warning">DEMO EMULATION</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+
+            <!-- Right: Machine Operating Profile & Specifications -->
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div class="card-header">
+                  <div class="card-title-group">
+                    <div class="card-title-icon">
+                      <i data-lucide="sliders-horizontal"></i>
+                    </div>
+                    <div>
+                      <h3 class="card-title">Motor Operating Profile</h3>
+                      <span class="card-subtitle">Specifications & baseline telemetry setpoints</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="hardware-spec-list">
+                  <div class="spec-item">
+                    <span class="spec-label">Machine Identifier</span>
+                    <span class="spec-val">MOTOR_01</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Machine Classification</span>
+                    <span class="spec-val">Industrial Brushed DC Motor</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Rated Operating Voltage</span>
+                    <span class="spec-val">12.0 V DC (PWM Controlled)</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Nominal Rotor Speed</span>
+                    <span class="spec-val">2,800 RPM</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Baseline Vibration Noise Floor</span>
+                    <span class="spec-val">0.080 g RMS</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Vibration Warning Setpoint</span>
+                    <span class="spec-val" style="color: #F59E0B;">0.35 g RMS</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Temperature Warning Setpoint</span>
+                    <span class="spec-val" style="color: #F59E0B;">45.0 °C</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Statistical Anomaly Window</span>
+                    <span class="spec-val">50-sample moving RMS</span>
+                  </div>
+                  <div class="spec-item">
+                    <span class="spec-label">Last Calibration Timestamp</span>
+                    <span class="spec-val">2026-11-01 09:30</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top: 20px; padding: 14px; background: var(--bg-card-inner); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);">
+                <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="shield" style="width: 14px; height: 14px; color: var(--status-healthy);"></i>
+                  Predictive Health Status
+                </div>
+                <div style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.45;">
+                  EdgeSense statistical anomaly detector continuously computes $Z = \frac{RMS - \mu}{\sigma}$. Measurements exceeding 3σ trigger automatic warning alerts before physical thermal breakdown occurs.
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 3: LIVE ANALYTICS PAGE
+             ================================================================ -->
+        <section class="page-view" id="view-analytics">
+          
+          <!-- Analytics Top Controls Bar -->
+          <div class="analytics-controls-bar">
+            <div class="analytics-bar-left">
+              <!-- Time Range Selector -->
+              <div class="time-range-group">
+                <button class="time-btn" data-time-range="1">1 Min</button>
+                <button class="time-btn active" data-time-range="5">5 Min</button>
+                <button class="time-btn" data-time-range="30">30 Min</button>
+                <button class="time-btn" data-time-range="60">1 Hour</button>
+              </div>
+
+              <!-- Legend Indicators -->
+              <div class="analytics-legend-pills">
+                <div class="legend-pill">
+                  <span class="legend-line baseline"></span>
+                  <span>Baseline (0.08g)</span>
+                </div>
+                <div class="legend-pill">
+                  <span class="legend-line threshold"></span>
+                  <span>Warning Threshold</span>
+                </div>
+                <div class="legend-pill">
+                  <span class="legend-line critical-line"></span>
+                  <span>Critical Limit</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions (Pause Stream, Export CSV) -->
+            <div class="analytics-actions">
+              <button class="btn-secondary" id="pauseStreamBtn">
+                <i data-lucide="pause"></i>
+                <span>Pause Stream</span>
+              </button>
+              <button class="btn-secondary" id="exportCsvBtn">
+                <i data-lucide="download"></i>
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Vibration Chart Card -->
+          <div class="chart-container-card">
+            <div class="chart-header-row">
+              <div class="card-title-group">
+                <div class="card-title-icon">
+                  <i data-lucide="activity"></i>
+                </div>
+                <div>
+                  <h3 class="card-title">Real-time Vibration RMS Telemetry (MPU6050)</h3>
+                  <span class="card-subtitle">Vector acceleration RMS computed on ESP32 at 50 Hz</span>
+                </div>
+              </div>
+
+              <!-- 3-Axis Dataset Toggles -->
+              <div class="axis-toggle-group">
+                <button class="axis-toggle-btn active" data-axis-toggle="total">Total RMS</button>
+                <button class="axis-toggle-btn active" data-axis-toggle="x">X-Axis</button>
+                <button class="axis-toggle-btn active" data-axis-toggle="y">Y-Axis</button>
+                <button class="axis-toggle-btn active" data-axis-toggle="z">Z-Axis</button>
+              </div>
+            </div>
+
+            <div class="chart-wrapper">
+              <canvas id="vibrationAnalyticsChart"></canvas>
+            </div>
+
+            <div class="chart-meta-footer">
+              <span>Sampling Window: 1s ticks | Dynamic Auto-scaling</span>
+              <span class="mono" style="color: var(--cyan-accent);">Data Source: DEMO SIMULATION BUFFER</span>
+            </div>
+          </div>
+
+          <!-- Temperature Chart Card -->
+          <div class="chart-container-card">
+            <div class="chart-header-row">
+              <div class="card-title-group">
+                <div class="card-title-icon" style="color: #F59E0B;">
+                  <i data-lucide="thermometer"></i>
+                </div>
+                <div>
+                  <h3 class="card-title">Motor Casing Temperature Variation (DS18B20)</h3>
+                  <span class="card-subtitle">Continuous thermal gradient with warning & critical safety limits</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chart-wrapper">
+              <canvas id="temperatureAnalyticsChart"></canvas>
+            </div>
+
+            <div class="chart-meta-footer">
+              <span>Sensor Resolution: 12-bit (0.0625°C step) | Probe: Waterproof Stainless Steel</span>
+              <span class="mono" style="color: #F59E0B;">Thermal Inertia Compensated</span>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             VIEW 4: ALERT HISTORY PAGE
+             ================================================================ -->
+        <section class="page-view" id="view-alerts">
+          
+          <!-- Alert Stat Badges -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+            <div class="card" style="padding: 14px 18px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Total Incidents</span>
+              <div style="font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;" id="statTotalAlerts">6</div>
+            </div>
+            <div class="card" style="padding: 14px 18px;">
+              <span style="font-size: 0.7rem; color: var(--status-warning); text-transform: uppercase;">Active Alerts</span>
+              <div style="font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700; color: var(--status-warning); margin-top: 4px;" id="statActiveAlerts">1</div>
+            </div>
+            <div class="card" style="padding: 14px 18px;">
+              <span style="font-size: 0.7rem; color: var(--status-critical); text-transform: uppercase;">Critical Exceedances</span>
+              <div style="font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700; color: var(--status-critical); margin-top: 4px;" id="statCritAlerts">0</div>
+            </div>
+            <div class="card" style="padding: 14px 18px;">
+              <span style="font-size: 0.7rem; color: var(--status-healthy); text-transform: uppercase;">System Availability</span>
+              <div style="font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700; color: var(--status-healthy); margin-top: 4px;">99.8%</div>
+            </div>
+          </div>
+
+          <!-- Alert Filters Bar -->
+          <div class="alerts-filter-bar">
+            <div class="alerts-filter-left">
+              <!-- Search Field -->
+              <div class="search-input-wrapper">
+                <i data-lucide="search"></i>
+                <input type="text" class="search-input" id="alertSearchInput" placeholder="Search alert type, ID, or description...">
+              </div>
+
+              <!-- Severity Filter -->
+              <select class="filter-select" id="alertSeverityFilter">
+                <option value="ALL">All Severities</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="WARNING">Warning</option>
+                <option value="INFO">Info</option>
+              </select>
+
+              <!-- Status Filter -->
+              <select class="filter-select" id="alertStatusFilter">
+                <option value="ALL">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="ACKNOWLEDGED">Acknowledged</option>
+                <option value="RESOLVED">Resolved</option>
+              </select>
+            </div>
+
+            <!-- Trigger Demo Alert Button -->
+            <button class="btn-secondary" id="triggerDemoAlertBtn" title="Inject a sample incident record for UI testing">
+              <i data-lucide="plus-circle"></i>
+              <span>Simulate Incident</span>
+            </button>
+          </div>
+
+          <!-- Alert Table -->
+          <div class="table-responsive">
+            <table class="industrial-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Alert ID</th>
+                  <th>Machine ID</th>
+                  <th>Alert Type</th>
+                  <th>Description</th>
+                  <th>Severity</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="alertsTableBody">
+                <!-- Dynamically populated by alerts.js -->
+              </tbody>
+            </table>
+          </div>
+
+          <div style="font-size: 0.74rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="info" style="width: 14px; height: 14px;"></i>
+            <span>All records shown above represent demonstration data for the EdgeSense prototype review.</span>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             VIEW 5: SYSTEM INFORMATION PAGE
+             ================================================================ -->
+        <section class="page-view" id="view-system">
+          
+          <!-- System Architecture Node Flow Diagram -->
+          <div class="architecture-diagram-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title-icon">
+                  <i data-lucide="network"></i>
+                </div>
+                <div>
+                  <h3 class="card-title">EdgeSense End-to-End System Architecture</h3>
+                  <span class="card-subtitle">Telemetry pipeline: physical transducer acquisition to dashboard presentation</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="architecture-flow">
+              <!-- Node 1: DC Motor -->
+              <div class="arch-node">
+                <div class="arch-node-icon" style="color: #38BDF8;">
+                  <i data-lucide="disc"></i>
+                </div>
+                <div class="arch-node-title">DC Motor</div>
+                <div class="arch-node-sub">Monitored Asset</div>
+              </div>
+
+              <div class="arch-flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+              <!-- Node 2: Sensors -->
+              <div class="arch-node">
+                <div class="arch-node-icon" style="color: var(--cyan-accent);">
+                  <i data-lucide="gauge"></i>
+                </div>
+                <div class="arch-node-title">MPU6050 + DS18B20</div>
+                <div class="arch-node-sub">I2C & 1-Wire Transducers</div>
+              </div>
+
+              <div class="arch-flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+              <!-- Node 3: ESP32 Edge Processing -->
+              <div class="arch-node">
+                <div class="arch-node-icon" style="color: #818CF8;">
+                  <i data-lucide="cpu"></i>
+                </div>
+                <div class="arch-node-title">ESP32 MCU</div>
+                <div class="arch-node-sub">RMS & Z-Score Filtering</div>
+              </div>
+
+              <div class="arch-flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+              <!-- Node 4: Wi-Fi -->
+              <div class="arch-node">
+                <div class="arch-node-icon" style="color: #F59E0B;">
+                  <i data-lucide="wifi"></i>
+                </div>
+                <div class="arch-node-title">Local Wi-Fi Network</div>
+                <div class="arch-node-sub">HTTP REST / WebSockets</div>
+              </div>
+
+              <div class="arch-flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+              <!-- Node 5: Dashboard -->
+              <div class="arch-node" style="border-color: var(--cyan-accent);">
+                <div class="arch-node-icon" style="color: var(--cyan-accent);">
+                  <i data-lucide="layout"></i>
+                </div>
+                <div class="arch-node-title">EdgeSense Dashboard</div>
+                <div class="arch-node-sub">SCADA Visualization</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Technical Specs Grid -->
+          <div class="system-info-grid">
+            
+            <!-- Microcontroller & Sensor Bus Details -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon">
+                    <i data-lucide="server"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">ESP32 Hardware & Firmware Specifications</h3>
+                    <span class="card-subtitle">Microcontroller platform parameters</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="hardware-spec-list">
+                <div class="spec-item">
+                  <span class="spec-label">Microcontroller Core</span>
+                  <span class="spec-val">ESP32-WROOM-32D (Dual Core Xtensa 240MHz)</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Internal Memory</span>
+                  <span class="spec-val">520 KB SRAM / 4 MB SPI Flash</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Wi-Fi Telemetry Protocol</span>
+                  <span class="spec-val">802.11 b/g/n (Station / SoftAP)</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">MPU6050 Bus Interface</span>
+                  <span class="spec-val">I2C Fast Mode (SDA: GPIO 21, SCL: GPIO 22)</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">DS18B20 Bus Interface</span>
+                  <span class="spec-val">Dallas 1-Wire (GPIO 4 with 4.7kΩ pull-up)</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Internal Vibration Calculation</span>
+                  <span class="spec-val">RMS = √( (1/N) * Σ aᵢ² ) across 500 samples</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Statistical Anomaly Method</span>
+                  <span class="spec-val">3-Sigma Z-Score vs Moving Baseline Window</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live ESP32 JSON Payload Contract Inspector -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon" style="color: var(--cyan-accent);">
+                    <i data-lucide="code"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Live Sensor Data Schema (JSON Contract)</h3>
+                    <span class="card-subtitle">Standardized payload consumed from ESP32</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="json-preview-box" id="liveJsonPayloadPreview">
+                <!-- Dynamically updated by dashboard.js -->
+              </div>
+
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 10px;">
+                This standardized JSON schema matches the firmware output produced by the ESP32 endpoint.
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 6: SETTINGS PAGE
+             ================================================================ -->
+        <section class="page-view" id="view-settings">
+          
+          <div class="settings-grid">
+            
+            <!-- Machine Configuration & Thresholds -->
+            <div class="card settings-group">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon">
+                    <i data-lucide="sliders"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Machine & Threshold Configuration</h3>
+                    <span class="card-subtitle">Define anomaly alert limits and machine identifiers</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <label class="setting-label" for="settingMachineName">Machine Friendly Name</label>
+                <input type="text" class="setting-input" id="settingMachineName" value="DC Motor Testbench #1">
+              </div>
+
+              <div class="setting-row">
+                <label class="setting-label" for="settingMachineId">Machine Identifier (ID)</label>
+                <input type="text" class="setting-input mono" id="settingMachineId" value="MOTOR_01">
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-label-row">
+                  <span class="setting-label">Vibration Warning Threshold (g RMS)</span>
+                  <span class="slider-val-box" id="vibWarnVal">0.35 g</span>
+                </div>
+                <div class="slider-group">
+                  <input type="range" class="setting-range" id="settingVibWarn" min="0.10" max="0.80" step="0.05" value="0.35">
+                </div>
+                <span class="setting-hint">Elevated vibration triggers WARNING state and logs an incident record.</span>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-label-row">
+                  <span class="setting-label">Vibration Critical Threshold (g RMS)</span>
+                  <span class="slider-val-box" id="vibCritVal" style="color: var(--status-critical);">0.60 g</span>
+                </div>
+                <div class="slider-group">
+                  <input type="range" class="setting-range" id="settingVibCrit" min="0.30" max="1.50" step="0.05" value="0.60">
+                </div>
+                <span class="setting-hint">Severe vibration indicative of mechanical or bearing damage.</span>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-label-row">
+                  <span class="setting-label">Temperature Warning Setpoint (°C)</span>
+                  <span class="slider-val-box" id="tempWarnVal">45.0 °C</span>
+                </div>
+                <div class="slider-group">
+                  <input type="range" class="setting-range" id="settingTempWarn" min="30.0" max="70.0" step="1.0" value="45.0">
+                </div>
+                <span class="setting-hint">DS18B20 casing temperature exceeding this level flags WARNING.</span>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-label-row">
+                  <span class="setting-label">Temperature Critical Setpoint (°C)</span>
+                  <span class="slider-val-box" id="tempCritVal" style="color: var(--status-critical);">60.0 °C</span>
+                </div>
+                <div class="slider-group">
+                  <input type="range" class="setting-range" id="settingTempCrit" min="50.0" max="90.0" step="1.0" value="60.0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Operating Mode & Hardware Connection Layer -->
+            <div class="card settings-group" id="hardwareSettingsCard">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-title-icon" style="color: var(--cyan-accent);">
+                    <i data-lucide="radio"></i>
+                  </div>
+                  <div>
+                    <h3 class="card-title">Data Ingestion Architecture</h3>
+                    <span class="card-subtitle">Switch between demonstration data and physical ESP32</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <label class="setting-label">Operating Mode</label>
+                <div class="mode-toggle-group">
+                  <button type="button" class="mode-option-btn active demo-active" id="modeSelectDemo">
+                    <span>DEMO MODE</span>
+                    <span class="mode-desc">Realistic Simulation</span>
+                  </button>
+                  <button type="button" class="mode-option-btn" id="modeSelectHw">
+                    <span>HARDWARE MODE</span>
+                    <span class="mode-desc">ESP32 REST Ingestion</span>
+                  </button>
+                </div>
+                <span class="setting-hint">Demo Mode generates dynamic motor physics. Hardware Mode polls real ESP32 JSON endpoint.</span>
+              </div>
+
+              <div class="setting-row">
+                <label class="setting-label" for="settingEndpointUrl">ESP32 REST Endpoint URL</label>
+                <input type="text" class="setting-input mono" id="settingEndpointUrl" value="http://192.168.4.1/data" placeholder="http://ESP32_IP/data">
+                <span class="setting-hint">Default SoftAP address: http://192.168.4.1/data or your local Wi-Fi IP.</span>
+              </div>
+
+              <div>
+                <button type="button" class="btn-secondary" id="testEsp32ConnBtn" style="width: fit-content;">
+                  <i data-lucide="zap"></i>
+                  <span>Test ESP32 Connection</span>
+                </button>
+                <div class="conn-test-box" id="testConnResultBox"></div>
+              </div>
+
+              <div class="setting-row">
+                <label class="setting-label" for="settingRefreshInterval">Dashboard Polling Interval</label>
+                <select class="setting-input" id="settingRefreshInterval">
+                  <option value="500">500 ms (High Frequency)</option>
+                  <option value="1000" selected>1000 ms (Standard 1 Hz)</option>
+                  <option value="2000">2000 ms (Conserve Power)</option>
+                  <option value="5000">5000 ms (Low Bandwidth)</option>
+                </select>
+              </div>
+
+              <div class="setting-row">
+                <label class="setting-label">Notification Preferences</label>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                  <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" id="settingEnableToasts" checked style="accent-color: var(--primary-blue);">
+                    <span>Display visual banner notifications on threshold breach</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" id="settingEnableAudio" style="accent-color: var(--primary-blue);">
+                    <span>Play subtle audio chime on warning / critical alert</span>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Footer Save Actions -->
+            <div class="settings-footer-actions">
+              <button type="button" class="btn-danger" id="resetSettingsBtn">
+                <i data-lucide="rotate-ccw"></i>
+                <span>Reset to Defaults</span>
+              </button>
+              <button type="button" class="btn-primary" id="saveSettingsBtn">
+                <i data-lucide="save"></i>
+                <span>Save Configuration</span>
+              </button>
+            </div>
+
+          </div>
+
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Global Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- EdgeSense JavaScript Modules -->
+  <script src="js/dataService.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/alerts.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
