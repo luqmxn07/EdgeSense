@@ -15,7 +15,7 @@ class EdgeSenseSettings {
       tempCrit: 60.0,
       pollingIntervalMs: 1000,
       mode: 'DEMO', // 'DEMO' | 'HARDWARE'
-      endpointUrl: 'http://192.168.4.1/data',
+      endpointUrl: 'https://edgesense-5q6k.onrender.com/api/telemetry/latest',
       enableToasts: true,
       enableAudioChime: false
     };
