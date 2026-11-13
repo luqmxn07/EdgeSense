@@ -60,3 +60,4 @@ package-lock.json
 *.bak
 *.swp
 *~
+.neon

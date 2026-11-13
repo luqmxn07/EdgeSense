@@ -30,6 +30,9 @@
 | **Navigation** | Completed | Sidebar router, 6 tabbed views, mobile drawer, and header quick-controls. |
 | **Analytics** | Completed | Real-time Chart.js charts (Vibration RMS, 3-axis traces, Casing Temp, thresholds). |
 | **Demo Data** | Completed | Physics-based simulation engine with thermal inertia and scenario presets. |
+| **Backend & Cloud API**| Completed | Express.js REST API deployed on Render (`https://edgesense-5q6k.onrender.com`). |
+| **Cloud Database**    | Completed | PostgreSQL schema executed and live on Neon (`AWS us-west-2 Oregon`). |
+| **Frontend Cloud Deploy** | Completed | Static dashboard configured and deployed on Vercel (`edgesense-dashboard`). |
 | **ESP32 Integration** | In Progress | Frontend REST ingestion layer ready; ESP32 firmware & physical link pending. |
 | **MPU6050 Integration**| Not Started | Physical wiring & I2C driver on ESP32 pending. |
 | **DS18B20 Integration**| Not Started | Physical wiring & 1-Wire driver on ESP32 pending. |
@@ -40,21 +43,35 @@
 
 ## Pending Tasks & Future Development
 
-* [ ] Develop ESP32 firmware in C/C++ (Arduino framework / ESP-IDF).
+* [ ] Connect ESP32 firmware directly to the cloud Render API (`POST https://edgesense-5q6k.onrender.com/api/telemetry`).
 * [ ] Implement I2C communication with MPU6050 on GPIO 21 (SDA) and GPIO 22 (SCL).
 * [ ] Implement 1-Wire communication with DS18B20 on GPIO 4.
 * [ ] Implement local vector RMS calculation on ESP32 ($RMS = \sqrt{\frac{1}{N}\sum a_i^2}$).
 * [ ] Implement statistical anomaly detection (moving window $\mu$, $\sigma$, and 3-sigma Z-Score) on ESP32.
-* [ ] Configure ESP32 local HTTP REST server (`GET /data`) with CORS headers.
 * [ ] Wire and assemble the physical testbench (DC Motor, L298N driver, sensor brackets, ESP32).
-* [ ] Connect the EdgeSense frontend dashboard to the live ESP32 Wi-Fi network.
-* [ ] Verify real-time hardware telemetry streaming against baseline calibration.
-* [ ] Deploy PostgreSQL database and Node.js backend API to Render.
-* [ ] Connect dashboard frontend to Render API and deploy to Vercel.
+* [ ] Verify end-to-end telemetry streaming from physical ESP32 to Render/Neon and live Vercel dashboard.
 
 ---
 
 ## Version History
+
+### v0.5.0 – Cloud Full-Stack Deployment (Render, Neon PostgreSQL & Vercel)
+**Date:** 13 November 2026
+
+#### Added
+* **Neon Serverless PostgreSQL Database:** Provisioned cloud PostgreSQL project (`EdgeSense`, branch: `production`, region: `AWS US West 2 Oregon`). Executed [backend/schema.sql](file:///c:/Users/wwwar/Documents/GitHub/EdgeSense%20Dashboard%20development/backend/schema.sql) creating `telemetry_readings` and `anomaly_alerts` tables with composite time-series indexes.
+* **Render Web Service Deployment:** Deployed Node.js Express API to Render at `https://edgesense-5q6k.onrender.com` linked to GitHub `luqmxn07/EdgeSense`. Configured root directory `backend`, build command `npm install`, and start command `node server.js`.
+* **Vercel Frontend Deployment:** Configured project `edgesense-dashboard` on Vercel with root directory `dashboard` and application preset `Other` for zero-configuration static hosting.
+* **Cloud API Integration in Dashboard:** Updated [dashboard/js/settings.js](file:///c:/Users/wwwar/Documents/GitHub/EdgeSense%20Dashboard%20development/dashboard/js/settings.js) and [dashboard/index.html](file:///c:/Users/wwwar/Documents/GitHub/EdgeSense%20Dashboard%20development/dashboard/index.html) default telemetry endpoint to point directly to `https://edgesense-5q6k.onrender.com/api/telemetry/latest`.
+* **Public Repository Migration:** Updated GitHub repository `luqmxn07/EdgeSense` visibility from Private to Public.
+
+#### Files
+* Modified: `PROJECT_CHANGELOG.md`, `dashboard/js/settings.js`, `dashboard/index.html`, `.gitignore`.
+
+#### Current Limitations
+* Cloud infrastructure is fully live; physical ESP32 breadboard and sensor assembly remain to be connected to the cloud API endpoint.
+
+---
 
 ### v0.4.1 – Cloud Backend API & PostgreSQL Schema Scaffold
 **Date:** 12 November 2026
