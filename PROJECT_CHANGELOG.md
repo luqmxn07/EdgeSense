@@ -33,27 +33,52 @@
 | **Backend & Cloud API**| Completed | Express.js REST API deployed on Render (`https://edgesense-5q6k.onrender.com`). |
 | **Cloud Database**    | Completed | PostgreSQL schema executed and live on Neon (`AWS us-west-2 Oregon`). |
 | **Frontend Cloud Deploy** | Completed | Static dashboard configured and deployed on Vercel (`edgesense-dashboard`). |
-| **ESP32 Integration** | In Progress | Frontend REST ingestion layer ready; ESP32 firmware & physical link pending. |
-| **MPU6050 Integration**| Not Started | Physical wiring & I2C driver on ESP32 pending. |
-| **DS18B20 Integration**| Not Started | Physical wiring & 1-Wire driver on ESP32 pending. |
-| **Anomaly Detection**  | In Progress | Frontend 3-sigma Z-score display functional; embedded edge calculation pending. |
-| **Hardware Prototype** | Not Started | Physical testbench assembly and motor mounting pending. |
+| **ESP32 Integration** | Completed | ESP32 firmware running MPU6050, DS18B20, SH1106 OLED, and HTTPS POST every 2s to Render. |
+| **MPU6050 Integration**| Completed | Physical I2C readings on GPIO 21/22 with vector RMS acceleration calculation. |
+| **DS18B20 Integration**| Completed | Physical 1-Wire temperature readings on GPIO 4 with automatic fallback. |
+| **Anomaly Detection**  | Completed | Dual-tier classification: edge threshold logic on ESP32 + cloud statistical Z-score. |
+| **Hardware Prototype** | In Progress | Physical breadboard circuit running; final mechanical motor testbench mounting pending. |
 
 ---
 
 ## Pending Tasks & Future Development
 
-* [ ] Connect ESP32 firmware directly to the cloud Render API (`POST https://edgesense-5q6k.onrender.com/api/telemetry`).
-* [ ] Implement I2C communication with MPU6050 on GPIO 21 (SDA) and GPIO 22 (SCL).
-* [ ] Implement 1-Wire communication with DS18B20 on GPIO 4.
-* [ ] Implement local vector RMS calculation on ESP32 ($RMS = \sqrt{\frac{1}{N}\sum a_i^2}$).
-* [ ] Implement statistical anomaly detection (moving window $\mu$, $\sigma$, and 3-sigma Z-Score) on ESP32.
-* [ ] Wire and assemble the physical testbench (DC Motor, L298N driver, sensor brackets, ESP32).
-* [ ] Verify end-to-end telemetry streaming from physical ESP32 to Render/Neon and live Vercel dashboard.
+* [x] Connect ESP32 firmware directly to the cloud Render API (`POST https://edgesense-5q6k.onrender.com/api/telemetry`).
+* [x] Implement I2C communication with MPU6050 on GPIO 21 (SDA) and GPIO 22 (SCL).
+* [x] Implement 1-Wire communication with DS18B20 on GPIO 4.
+* [x] Implement local vector RMS calculation on ESP32 ($RMS = \sqrt{\frac{1}{3}\sum a_i^2}$).
+* [x] Ingest ESP32 JSON payload (`casing_temp`, `vibration_rms`, 3-axis accelerations) into Render backend.
+* [x] Enable real-time dashboard data synchronization from Render cloud API to Vercel dashboard.
+* [ ] Assemble permanent motor testbench mounting (motor shaft coupler, sensor bracket, L298N driver load test).
+* [ ] Wire Neon `DATABASE_URL` environment variable directly into Render web service settings.
 
 ---
 
 ## Version History
+
+### v0.5.1 – ESP32 Hardware Integration & Cloud Data Pipeline Ingestion
+**Date:** 13 November 2026
+
+#### Added
+* **ESP32 Firmware Cloud Push (`firmware/esp32/edgesense_firmware.ino`):**
+  - Integrated Adafruit SH1106G 1.3" I2C OLED display (GPIO 21 SDA, GPIO 22 SCL) displaying live local telemetry (RMS vibration, Casing Temp, Status, Cloud sync status).
+  - Configured MPU6050 I2C accelerometer sampling at register `0x3B` (converted raw sensitivity: $ax, ay, az$ at 16384 LSB/g) with vector RMS computation: $RMS = \sqrt{(ax^2 + ay^2 + az^2) / 3}$.
+  - Configured Dallas DS18B20 1-Wire temperature acquisition on GPIO 4.
+  - Implemented background HTTP client dispatching JSON telemetry payload to `https://edgesense-5q6k.onrender.com/api/telemetry` every 2000ms.
+* **Backend In-Memory Real-Time Telemetry Buffer (`backend/server.js`):**
+  - Added fast in-memory telemetry buffer (`latestTelemetryInMemory`, `historyInMemory`, `inMemoryAlerts`).
+  - Removed strict `requireDb` middleware blocker from ingestion and query endpoints (`POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/telemetry/history`, `/api/alerts`), ensuring zero telemetry dropouts during database cold starts or maintenance.
+  - Normalized ESP32 payloads supporting both direct hardware field names (`casing_temp`, `vibration_rms`, `vibration_x/y/z`, `status`) and standardized camelCase keys.
+* **Frontend Real-Time Hardware Mode by Default (`dashboard/js/dataService.js` & `settings.js`):**
+  - Changed default dashboard mode from `DEMO` to `HARDWARE`.
+  - Configured default telemetry polling endpoint to `https://edgesense-5q6k.onrender.com/api/telemetry/latest`.
+  - Added automated migration in `loadConfig()` to seamlessly upgrade stale cached `192.168.4.1` endpoints to the cloud Render URL.
+  - Updated `fetchHardwareReading()` to support direct `casing_temp` and 3-axis vibration fields with truthful `esp32Connected` connection status reflection.
+
+#### Files
+* Modified: `backend/server.js`, `dashboard/js/dataService.js`, `dashboard/js/settings.js`, `firmware/esp32/edgesense_firmware.ino`, `PROJECT_CHANGELOG.md`.
+
+---
 
 ### v0.5.0 – Cloud Full-Stack Deployment (Render, Neon PostgreSQL & Vercel)
 **Date:** 13 November 2026

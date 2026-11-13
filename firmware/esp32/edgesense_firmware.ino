@@ -1,219 +1,169 @@
 /**
- * EdgeSense — ESP32 Machine Health Monitoring & Anomaly Detection Firmware
- * 
+ * EdgeSense — ESP32 Cloud-Connected Telemetry Client Firmware
+ *
  * Hardware:
  * - ESP32 DevKit V1
- * - MPU6050 (I2C: SDA=GPIO 21, SCL=GPIO 22)
- * - DS18B20 (1-Wire: GPIO 4 with 4.7k pull-up)
- * - DC Motor & L298N Driver (PWM=GPIO 27, IN1=GPIO 25, IN2=GPIO 26)
+ * - MPU6050 Accelerometer (I2C: SDA=GPIO 21, SCL=GPIO 22)
+ * - DS18B20 Temperature Sensor (1-Wire: GPIO 4 with 4.7k pull-up)
+ * - SH1106 1.3" I2C OLED Display (128x64, Address 0x3C)
  *
- * REST Endpoint:
- * GET http://<ESP32_IP>/data -> Returns normalized JSON telemetry payload with CORS headers.
+ * Telemetry Protocol:
+ * - Direct HTTP POST JSON to Render Cloud Backend:
+ *   https://edgesense-5q6k.onrender.com/api/telemetry
+ * - Interval: Every 2000ms
  */
 
 #include <WiFi.h>
-#include <WebServer.h>
+#include <HTTPClient.h>
 #include <Wire.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-#include <OneWire.h>
 #include <DallasTemperature.h>
-#include <ArduinoJson.h>
+#include <OneWire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SH110X.h>
 
-// Wi-Fi Configuration
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
+// --- Wi-Fi Credentials ---
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
 
-// Hardware Pin Definitions
-#define ONE_WIRE_BUS 4
-#define MOTOR_PWM_PIN 27
-#define MOTOR_IN1_PIN 25
-#define MOTOR_IN2_PIN 26
+// --- Cloud Backend Endpoint ---
+const char* serverUrl = "https://edgesense-5q6k.onrender.com/api/telemetry";
 
-// Sensor & Server Objects
-WebServer server(80);
-Adafruit_MPU6050 mpu;
+// --- Hardware Pin Definitions ---
+#define PIN_OLED_SDA  21
+#define PIN_OLED_SCL  22
+#define ONE_WIRE_BUS  4     // DS18B20 Data pin on GPIO 4
+
+// --- Display Configuration (SH1106 128x64) ---
+#define SCREEN_WIDTH  128
+#define SCREEN_HEIGHT 64
+#define OLED_I2C_ADDR 0x3C
+
+Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
 OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature ds18b20(&oneWire);
+DallasTemperature sensors(&oneWire);
+const int MPU_ADDR = 0x68;
 
-// Baseline & Threshold Constants
-const float BASELINE_RMS = 0.080;
-const float VIBRATION_WARN = 0.35;
-const float VIBRATION_CRIT = 0.60;
-const float TEMP_WARN = 45.0;
-const float TEMP_CRIT = 60.0;
-
-// Sampling Window (N = 50 samples per evaluation)
-const int SAMPLE_WINDOW = 50;
-float x_accel_buffer[SAMPLE_WINDOW];
-float y_accel_buffer[SAMPLE_WINDOW];
-float z_accel_buffer[SAMPLE_WINDOW];
-int sample_idx = 0;
-
-// Active Telemetry State
-float current_x_rms = 0.052;
-float current_y_rms = 0.048;
-float current_z_rms = 0.042;
-float current_vib_rms = 0.082;
-float current_temp = 32.5;
-float anomaly_score = 0.24;
-String machine_status = "HEALTHY";
-String status_message = "Machine operating within its established baseline.";
-String anomaly_status = "NORMAL";
-
-bool mpu_online = false;
-bool ds_online = false;
-
-void handleRoot() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "text/plain", "EdgeSense ESP32 Telemetry Node Active. Access /data for JSON feed.");
-}
-
-void handleData() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  server.sendHeader("Access-Control-Allow-Headers", "*");
-
-  StaticJsonDocument<1024> doc;
-
-  doc["machineId"] = "MOTOR_01";
-  doc["machineStatus"] = machine_status;
-  doc["statusMessage"] = status_message;
-  doc["vibrationRMS"] = serialized(String(current_vib_rms, 3));
-  doc["xRMS"] = serialized(String(current_x_rms, 3));
-  doc["yRMS"] = serialized(String(current_y_rms, 3));
-  doc["zRMS"] = serialized(String(current_z_rms, 3));
-  doc["baselineRMS"] = BASELINE_RMS;
-  doc["vibrationStatus"] = (current_vib_rms >= VIBRATION_CRIT) ? "CRITICAL" : ((current_vib_rms >= VIBRATION_WARN) ? "WARNING" : "HEALTHY");
-  
-  doc["temperature"] = serialized(String(current_temp, 2));
-  doc["tempTrend"] = "STABLE";
-  doc["tempStatus"] = (current_temp >= TEMP_CRIT) ? "CRITICAL" : ((current_temp >= TEMP_WARN) ? "WARNING" : "HEALTHY");
-  doc["tempThreshold"] = TEMP_WARN;
-  doc["vibrationThreshold"] = VIBRATION_WARN;
-  
-  doc["anomalyStatus"] = anomaly_status;
-  doc["anomalyScore"] = serialized(String(anomaly_score, 2));
-  doc["anomalyMethod"] = "Statistical Z-Score (3-Sigma) & Moving RMS Window";
-  doc["totalAlerts"] = (machine_status != "HEALTHY") ? 1 : 0;
-  doc["esp32Connected"] = true;
-  doc["mode"] = "HARDWARE";
-  doc["timestamp"] = millis();
-
-  JsonObject sensors = doc.createNestedObject("sensors");
-  sensors["mpu6050"] = mpu_online ? "ONLINE" : "FAULT";
-  sensors["ds18b20"] = ds_online ? "ONLINE" : "FAULT";
-  sensors["esp32"] = "CONNECTED";
-
-  JsonObject sys = doc.createNestedObject("system");
-  sys["deviceId"] = "ESP32-HARDWARE-01";
-  sys["firmware"] = "v1.0.0-prod";
-  sys["uptimeSeconds"] = millis() / 1000;
-  sys["lastUpdate"] = millis();
-  sys["wifiRssi"] = WiFi.RSSI();
-  sys["samplingIntervalMs"] = 20;
-
-  String output;
-  serializeJson(doc, output);
-  server.send(200, "application/json", output);
-}
+unsigned long lastSendTime = 0;
+const unsigned long sendInterval = 2000; // Send telemetry every 2 seconds
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.println("\n[EdgeSense] Initializing Hardware Node...");
+  delay(1000);
 
-  // Initialize I2C Bus for MPU6050
-  Wire.begin(21, 22);
-  if (mpu.begin()) {
-    mpu_online = true;
-    mpu.setAccelerometerRange(MPU6050_RANGE_4_G);
-    mpu.setFilterBandwidth(MPU6050_BAND_44_HZ);
-    Serial.println("[EdgeSense] MPU6050 initialized successfully on I2C 0x68.");
-  } else {
-    Serial.println("[EdgeSense] Warning: MPU6050 not found on I2C bus.");
-  }
+  // Initialize I2C bus for MPU and SH1106 OLED
+  Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
+  Wire.setClock(100000);
 
-  // Initialize DS18B20 1-Wire
-  ds18b20.begin();
-  if (ds18b20.getDeviceCount() > 0) {
-    ds_online = true;
-    Serial.printf("[EdgeSense] DS18B20 online. Found %d probe(s).\n", ds18b20.getDeviceCount());
+  // Initialize SH1106 OLED Display
+  if (!display.begin(OLED_I2C_ADDR, true)) {
+    Serial.println(F("SH1106 allocation failed"));
+    for(;;);
   }
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SH110X_WHITE);
+  display.setCursor(0, 0);
+  display.println(F("EdgeSense Booting..."));
+  display.display();
+
+  // Initialize MPU Sensor
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission(true);
+
+  // Initialize DS18B20
+  sensors.begin();
 
   // Connect to Wi-Fi
-  Serial.printf("[EdgeSense] Connecting to %s...\n", WIFI_SSID);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-  // Setup REST Server Routes
-  server.on("/", HTTP_GET, handleRoot);
-  server.on("/data", HTTP_GET, handleData);
-  server.begin();
-  Serial.println("[EdgeSense] HTTP REST server listening on port 80.");
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+  display.setCursor(0, 16);
+  display.print(F("Connecting WiFi..."));
+  display.display();
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWi-Fi Connected!");
 }
 
 void loop() {
-  server.handleClient();
-
-  // Periodic sensor acquisition (every 20ms = 50Hz)
-  static unsigned long last_sample_time = 0;
-  if (millis() - last_sample_time >= 20) {
-    last_sample_time = millis();
-
-    if (mpu_online) {
-      sensors_event_t a, g, temp;
-      mpu.getEvent(&a, &g, &temp);
-
-      // Convert m/s^2 to g (1g = 9.80665 m/s^2)
-      x_accel_buffer[sample_idx] = a.acceleration.x / 9.80665;
-      y_accel_buffer[sample_idx] = a.acceleration.y / 9.80665;
-      z_accel_buffer[sample_idx] = a.acceleration.z / 9.80665;
-      sample_idx++;
-
-      if (sample_idx >= SAMPLE_WINDOW) {
-        sample_idx = 0;
-        // Compute RMS across window
-        float sum_x = 0, sum_y = 0, sum_z = 0;
-        for (int i = 0; i < SAMPLE_WINDOW; i++) {
-          sum_x += x_accel_buffer[i] * x_accel_buffer[i];
-          sum_y += y_accel_buffer[i] * y_accel_buffer[i];
-          sum_z += z_accel_buffer[i] * z_accel_buffer[i];
-        }
-        current_x_rms = sqrt(sum_x / SAMPLE_WINDOW);
-        current_y_rms = sqrt(sum_y / SAMPLE_WINDOW);
-        current_z_rms = sqrt(sum_z / SAMPLE_WINDOW);
-        current_vib_rms = sqrt(current_x_rms * current_x_rms + current_y_rms * current_y_rms + current_z_rms * current_z_rms);
-
-        // Compute 3-Sigma Anomaly Score (approximate baseline mu=0.08, sigma=0.015)
-        anomaly_score = abs(current_vib_rms - BASELINE_RMS) / 0.015;
-        if (anomaly_score >= 3.0 || current_vib_rms >= VIBRATION_CRIT) {
-          machine_status = "CRITICAL";
-          status_message = "Persistent severe vibration exceedance detected.";
-          anomaly_status = "ANOMALY_DETECTED";
-        } else if (anomaly_score >= 1.5 || current_vib_rms >= VIBRATION_WARN) {
-          machine_status = "WARNING";
-          status_message = "Vibration readings are higher than established baseline.";
-          anomaly_status = "ANOMALY_DETECTED";
-        } else {
-          machine_status = "HEALTHY";
-          status_message = "Machine operating within its established baseline.";
-          anomaly_status = "NORMAL";
-        }
-      }
-    }
+  // Maintain Wi-Fi connection
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) { delay(500); }
   }
 
-  // Periodic Temperature Acquisition (every 1000ms = 1Hz)
-  static unsigned long last_temp_time = 0;
-  if (millis() - last_temp_time >= 1000) {
-    last_temp_time = millis();
-    if (ds_online) {
-      ds18b20.requestTemperatures();
-      float t = ds18b20.getTempCByIndex(0);
-      if (t > -50.0 && t < 125.0) {
-        current_temp = t;
-      }
-    }
+  // 1. Read MPU Acceleration Data
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x3B);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_ADDR, 6, true);
+
+  int16_t axRaw = (Wire.read() << 8 | Wire.read());
+  int16_t ayRaw = (Wire.read() << 8 | Wire.read());
+  int16_t azRaw = (Wire.read() << 8 | Wire.read());
+
+  float ax = axRaw / 16384.0;
+  float ay = ayRaw / 16384.0;
+  float az = azRaw / 16384.0;
+  float vibrationRms = sqrt((ax * ax + ay * ay + az * az) / 3.0);
+
+  // 2. Read DS18B20 Temperature
+  sensors.requestTemperatures();
+  float casingTemp = sensors.getTempCByIndex(0);
+  if (casingTemp == DEVICE_DISCONNECTED_C) {
+    casingTemp = 25.0; // Fallback default
   }
+
+  // Determine system status
+  String sysStatus = (vibrationRms > 0.6) ? "CRITICAL" : ((vibrationRms > 0.35) ? "WARNING" : "HEALTHY");
+
+  // 3. Update Local SH1106 OLED Display (Live local feed)
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.print(F("=== EDGESENSE LOCAL ==="));
+  display.setCursor(0, 12);
+  display.print(F("RMS: ")); display.print(vibrationRms, 3); display.print(F(" g"));
+  display.setCursor(0, 24);
+  display.print(F("Temp: ")); display.print(casingTemp, 1); display.print(F(" C"));
+  display.setCursor(0, 36);
+  display.print(F("Status: ")); display.print(sysStatus);
+  display.setCursor(0, 48);
+  display.print(F("Cloud: SYNCED"));
+  display.display();
+
+  // 4. Send Telemetry to Render Cloud Backend every 2 seconds
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastSendTime >= sendInterval) {
+    lastSendTime = currentMillis;
+
+    String jsonPayload = "{";
+    jsonPayload += "\"machine_id\": \"MOTOR_01\",";
+    jsonPayload += "\"vibration_rms\":" + String(vibrationRms, 4) + ",";
+    jsonPayload += "\"vibration_x\":" + String(ax, 4) + ",";
+    jsonPayload += "\"vibration_y\":" + String(ay, 4) + ",";
+    jsonPayload += "\"vibration_z\":" + String(az, 4) + ",";
+    jsonPayload += "\"casing_temp\":" + String(casingTemp, 2) + ",";
+    jsonPayload += "\"status\": \"" + sysStatus + "\"";
+    jsonPayload += "}";
+
+    HTTPClient http;
+    http.begin(serverUrl);
+    http.addHeader("Content-Type", "application/json");
+    int httpResponseCode = http.POST(jsonPayload);
+    
+    if (httpResponseCode > 0) {
+      Serial.println("Telemetry posted successfully to Cloud!");
+    } else {
+      Serial.print("HTTP POST error: ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+  }
+
+  delay(50);
 }

@@ -9,8 +9,8 @@ class EdgeSenseDataService {
     // Load persisted configuration or defaults
     const savedConfig = this.loadConfig();
 
-    this.mode = savedConfig.mode || 'DEMO'; // 'DEMO' | 'HARDWARE'
-    this.endpointUrl = savedConfig.endpointUrl || 'http://192.168.4.1/data';
+    this.mode = savedConfig.mode || 'HARDWARE'; // 'DEMO' | 'HARDWARE'
+    this.endpointUrl = savedConfig.endpointUrl || 'https://edgesense-5q6k.onrender.com/api/telemetry/latest';
     this.pollingIntervalMs = parseInt(savedConfig.pollingIntervalMs, 10) || 1000;
     
     // Thresholds
@@ -55,7 +55,12 @@ class EdgeSenseDataService {
   loadConfig() {
     try {
       const data = localStorage.getItem('edgesense_config');
-      return data ? JSON.parse(data) : {};
+      const parsed = data ? JSON.parse(data) : {};
+      // Migrate legacy SoftAP endpoint if present
+      if (parsed.endpointUrl === 'http://192.168.4.1/data') {
+        parsed.endpointUrl = 'https://edgesense-5q6k.onrender.com/api/telemetry/latest';
+      }
+      return parsed;
     } catch (e) {
       console.warn('[EdgeSense DataService] Failed to read localStorage config:', e);
       return {};
@@ -306,25 +311,25 @@ class EdgeSenseDataService {
 
       // Normalize hardware payload against contract
       return {
-        machineId: raw.machineId || 'MOTOR_01',
-        machineStatus: raw.machineStatus || 'HEALTHY',
+        machineId: raw.machineId || raw.machine_id || 'MOTOR_01',
+        machineStatus: raw.machineStatus || raw.machine_status || raw.status || 'HEALTHY',
         statusMessage: raw.statusMessage || 'Live ESP32 telemetry streaming active.',
-        vibrationRMS: typeof raw.vibrationRMS === 'number' ? raw.vibrationRMS : 0.0,
-        xRMS: typeof raw.xRMS === 'number' ? raw.xRMS : 0.0,
-        yRMS: typeof raw.yRMS === 'number' ? raw.yRMS : 0.0,
-        zRMS: typeof raw.zRMS === 'number' ? raw.zRMS : 0.0,
-        baselineRMS: raw.baselineRMS || 0.080,
-        vibrationStatus: raw.vibrationStatus || 'HEALTHY',
-        temperature: typeof raw.temperature === 'number' ? raw.temperature : 0.0,
-        tempTrend: raw.tempTrend || 'STABLE',
-        tempStatus: raw.tempStatus || 'HEALTHY',
+        vibrationRMS: typeof raw.vibrationRMS === 'number' ? raw.vibrationRMS : (typeof raw.vibration_rms === 'number' ? raw.vibration_rms : 0.0),
+        xRMS: typeof raw.xRMS === 'number' ? raw.xRMS : (typeof raw.vibration_x === 'number' ? raw.vibration_x : (typeof raw.x_rms === 'number' ? raw.x_rms : 0.0)),
+        yRMS: typeof raw.yRMS === 'number' ? raw.yRMS : (typeof raw.vibration_y === 'number' ? raw.vibration_y : (typeof raw.y_rms === 'number' ? raw.y_rms : 0.0)),
+        zRMS: typeof raw.zRMS === 'number' ? raw.zRMS : (typeof raw.vibration_z === 'number' ? raw.vibration_z : (typeof raw.z_rms === 'number' ? raw.z_rms : 0.0)),
+        baselineRMS: raw.baselineRMS || raw.baseline_rms || 0.080,
+        vibrationStatus: raw.vibrationStatus || raw.vibration_status || 'HEALTHY',
+        temperature: typeof raw.temperature === 'number' ? raw.temperature : (typeof raw.casing_temp === 'number' ? raw.casing_temp : (typeof raw.temp === 'number' ? raw.temp : 0.0)),
+        tempTrend: raw.tempTrend || raw.temp_trend || 'STABLE',
+        tempStatus: raw.tempStatus || raw.temp_status || 'HEALTHY',
         tempThreshold: this.tempWarn,
         vibrationThreshold: this.vibrationWarn,
-        anomalyStatus: raw.anomalyStatus || 'NORMAL',
-        anomalyScore: typeof raw.anomalyScore === 'number' ? raw.anomalyScore : 0.0,
-        anomalyMethod: raw.anomalyMethod || 'Statistical Z-Score & Moving RMS Window',
-        totalAlerts: raw.totalAlerts || 0,
-        esp32Connected: true, // Actual real connection established
+        anomalyStatus: raw.anomalyStatus || raw.anomaly_status || 'NORMAL',
+        anomalyScore: typeof raw.anomalyScore === 'number' ? raw.anomalyScore : (typeof raw.anomaly_score === 'number' ? raw.anomaly_score : 0.0),
+        anomalyMethod: raw.anomalyMethod || raw.anomaly_method || 'Statistical Z-Score & Moving RMS Window',
+        totalAlerts: raw.totalAlerts ?? raw.total_alerts ?? 0,
+        esp32Connected: typeof raw.esp32Connected === 'boolean' ? raw.esp32Connected : true, // Real connection status from API
         mode: 'HARDWARE',
         timestamp: raw.timestamp || now,
         sensors: raw.sensors || {

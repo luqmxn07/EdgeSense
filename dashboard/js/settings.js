@@ -14,7 +14,7 @@ class EdgeSenseSettings {
       tempWarn: 45.0,
       tempCrit: 60.0,
       pollingIntervalMs: 1000,
-      mode: 'DEMO', // 'DEMO' | 'HARDWARE'
+      mode: 'HARDWARE', // 'DEMO' | 'HARDWARE'
       endpointUrl: 'https://edgesense-5q6k.onrender.com/api/telemetry/latest',
       enableToasts: true,
       enableAudioChime: false
@@ -34,6 +34,9 @@ class EdgeSenseSettings {
       const stored = localStorage.getItem('edgesense_config');
       if (stored) {
         const parsed = JSON.parse(stored);
+        if (parsed.endpointUrl === 'http://192.168.4.1/data') {
+          parsed.endpointUrl = 'https://edgesense-5q6k.onrender.com/api/telemetry/latest';
+        }
         this.current = { ...this.defaultSettings, ...parsed };
       }
     } catch (e) {
