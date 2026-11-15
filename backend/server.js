@@ -47,7 +47,13 @@ const inMemoryAlerts = [];
 const lastAlertTimeByMachine = new Map();
 
 // --- POSTGRESQL CONNECTION POOL ---
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.CONNECTION_STRING ||
+  process.env.POSTGRES_URL ||
+  process.env.NEON_DATABASE_URL ||
+  process.env.DATABASE_URI ||
+  process.env.DB_URL;
 const isLocalDb =
   !databaseUrl ||
   databaseUrl.includes('localhost') ||
