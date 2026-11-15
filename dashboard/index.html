@@ -76,9 +76,9 @@
         <div class="system-status-indicator">
           <div class="status-label-group">
             <span class="status-dot healthy pulse" id="sidebarStatusDot"></span>
-            <span style="font-weight: 600; color: var(--text-primary);" id="sidebarStatusText">Demo Mode</span>
+            <span style="font-weight: 600; color: var(--text-primary);" id="sidebarStatusText">Live Stream</span>
           </div>
-          <span class="version-tag">v1.0.0-demo</span>
+          <span class="version-tag">v1.0.0-edge</span>
         </div>
         <div class="system-meta-row">
           <span>Target: MOTOR_01</span>
@@ -109,29 +109,16 @@
         </div>
 
         <div class="header-right">
-          <!-- Operational Mode Badge (Never fakes real ESP32 connection in demo mode) -->
-          <div class="mode-badge demo" id="headerModeBadge">
+          <!-- Operational Mode Badge -->
+          <div class="mode-badge hardware-connected" id="headerModeBadge">
             <span class="status-dot healthy pulse" style="width: 6px; height: 6px;"></span>
-            DEMO MODE (SIMULATED)
+            CONNECTING...
           </div>
 
           <!-- Machine ID Chip -->
           <div class="machine-chip">
             <span class="chip-label">Node:</span>
             <span id="headerMachineId">MOTOR_01</span>
-          </div>
-
-          <!-- Quick Simulation Scenario Selector (Helpful during Mentor Evaluation) -->
-          <div class="demo-preset-pill" title="Switch simulation scenario for UI demonstration">
-            <i data-lucide="sliders" style="width: 14px; height: 14px; color: var(--cyan-accent);"></i>
-            <span>Simulate:</span>
-            <select class="demo-preset-select" id="headerDemoScenarioSelect">
-              <option value="NORMAL">Normal Operation</option>
-              <option value="WARNING_VIBRATION">High Vibration (Warn)</option>
-              <option value="CRITICAL_VIBRATION">Bearing Looseness (Crit)</option>
-              <option value="OVERHEATING">Stator Overheating</option>
-              <option value="SENSOR_FAULT">Sensor Disconnect</option>
-            </select>
           </div>
 
           <!-- Last Updated Timestamp -->
@@ -163,15 +150,6 @@
              ================================================================ -->
         <section class="page-view active" id="view-overview">
           
-          <!-- Demonstration Notice Banner -->
-          <div class="demo-notice-banner">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <i data-lucide="info" style="color: var(--cyan-accent); width: 18px; height: 18px; flex-shrink: 0;"></i>
-              <span><strong>DEMO MODE ACTIVE:</strong> Dashboard is currently displaying simulated sensor data for DC Motor evaluation. Real ESP32 integration layer is configured and ready.</span>
-            </div>
-            <a href="#" class="banner-action-btn" data-jump-view="view-settings">Configure ESP32 Link</a>
-          </div>
-
           <!-- 5.1 Machine Health Status Card -->
           <div class="health-hero-card" id="healthHeroCard">
             <div class="health-status-col">
@@ -280,14 +258,14 @@
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">ESP32 Status</span>
-                  <span class="meta-item-value" id="cardSysEspStatus">SIMULATED (DEMO)</span>
+                  <span class="meta-item-value" id="cardSysEspStatus">ONLINE</span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">System Uptime</span>
-                  <span class="meta-item-value" id="cardSysUptime">14h 32m</span>
+                  <span class="meta-item-value" id="cardSysUptime">--</span>
                 </div>
               </div>
-              <span class="sensor-status-tag healthy" id="cardSysLastUpdate">Active (Demo)</span>
+              <span class="sensor-status-tag healthy" id="cardSysLastUpdate">Live</span>
             </div>
 
             <!-- Card 4: Anomaly Detection -->
@@ -505,7 +483,7 @@
                       <td><strong>ESP32 Microcontroller</strong></td>
                       <td>Wi-Fi 802.11 b/g/n</td>
                       <td>Edge RMS & Z-Score Anomaly</td>
-                      <td id="sensorStatusEsp"><span class="sensor-status-tag warning">DEMO EMULATION</span></td>
+                      <td id="sensorStatusEsp"><span class="sensor-status-tag healthy">CONNECTED</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -656,7 +634,7 @@
 
             <div class="chart-meta-footer">
               <span>Sampling Window: 1s ticks | Dynamic Auto-scaling</span>
-              <span class="mono" style="color: var(--cyan-accent);">Data Source: DEMO SIMULATION BUFFER</span>
+              <span class="mono" style="color: var(--cyan-accent);">Data Source: ESP32 LIVE STREAM</span>
             </div>
           </div>
 
@@ -736,12 +714,6 @@
                 <option value="RESOLVED">Resolved</option>
               </select>
             </div>
-
-            <!-- Trigger Demo Alert Button -->
-            <button class="btn-secondary" id="triggerDemoAlertBtn" title="Inject a sample incident record for UI testing">
-              <i data-lucide="plus-circle"></i>
-              <span>Simulate Incident</span>
-            </button>
           </div>
 
           <!-- Alert Table -->
@@ -767,7 +739,7 @@
 
           <div style="font-size: 0.74rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
             <i data-lucide="info" style="width: 14px; height: 14px;"></i>
-            <span>All records shown above represent demonstration data for the EdgeSense prototype review.</span>
+            <span>Real-time anomaly incident log powered by ESP32 edge telemetry and Cloud statistical analysis.</span>
           </div>
 
         </section>
@@ -1014,13 +986,13 @@
               <div class="setting-row">
                 <label class="setting-label">Operating Mode</label>
                 <div class="mode-toggle-group">
-                  <button type="button" class="mode-option-btn active demo-active" id="modeSelectDemo">
+                  <button type="button" class="mode-option-btn" id="modeSelectDemo">
                     <span>DEMO MODE</span>
-                    <span class="mode-desc">Realistic Simulation</span>
+                    <span class="mode-desc">Simulation Testing</span>
                   </button>
-                  <button type="button" class="mode-option-btn" id="modeSelectHw">
-                    <span>HARDWARE MODE</span>
-                    <span class="mode-desc">ESP32 REST Ingestion</span>
+                  <button type="button" class="mode-option-btn active hw-active" id="modeSelectHw">
+                    <span>HARDWARE MODE (LIVE)</span>
+                    <span class="mode-desc">ESP32 Cloud Ingestion</span>
                   </button>
                 </div>
                 <span class="setting-hint">Demo Mode generates dynamic motor physics. Hardware Mode polls real ESP32 JSON endpoint.</span>
