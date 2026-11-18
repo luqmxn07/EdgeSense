@@ -1,13 +1,13 @@
 /**
- * EdgeSense — ESP32 Dual-Bus Production Firmware
+ * EdgeSense ESP32 Live Telemetry Firmware (Restored Production Build)
  * 
- * Features:
- * - Dedicated I2C0 (Wire: GPIO 21, 22) for SH1106 OLED Display
- * - Dedicated I2C1 (MPU_Wire: GPIO 26, 25) for MPU6050 / MPU9250 IMU
- * - 1-Wire DS18B20 on GPIO 4 (with non-blocking 1000ms conversion cadence)
- * - 3D Gravity-Compensated Vibration RMS (totalMagnitude - 1.0g with 0.01g deadband filter)
- * - Robust Station-Mode Wi-Fi with auto-reconnect and 15s timeout protection
- * - Secure HTTPS POST to Render Cloud Backend (feeds live Vercel dashboard)
+ * Hardware Pin Schedule:
+ * - OLED SH1106: Dedicated Hardware I2C0 (Wire)      -> SDA: GPIO 21, SCL: GPIO 22
+ * - MPU6050/9250: Dedicated Hardware I2C1 (MPU_Wire) -> SDA: GPIO 26, SCL: GPIO 25
+ * - DS18B20 Temp: 1-Wire                             -> DATA: GPIO 4 (with 4.7k pull-up to 3.3V)
+ * - Power: 3.3V and GND Rails
+ * 
+ * Target: Render Cloud Backend (feeds live Vercel Dashboard)
  */
 
 #include <WiFi.h>
@@ -23,20 +23,15 @@
 const char* ssid = "rubythroat";
 const char* password = "alfa1234beta5678";
 
-// --- Live Cloud Backend Endpoint ---
+// --- Cloud Backend Endpoint (feeds Vercel Dashboard) ---
 const char* serverUrl = "https://edgesense-5q6k.onrender.com/api/telemetry";
 
 // --- Hardware Pin Definitions ---
-// 1. OLED Display (Hardware I2C0 Bus)
 #define OLED_SDA      21
 #define OLED_SCL      22
-
-// 2. MPU6050 / MPU9250 (Dedicated Hardware I2C1 Bus)
-#define MPU_SDA       26
-#define MPU_SCL       25
-
-// 3. DS18B20 Digital Temperature Sensor (1-Wire Bus)
-#define ONE_WIRE_BUS  4      // GPIO 4 with 4.7k pull-up to 3.3V
+#define MPU_SDA       26     // MPU on GPIO 26
+#define MPU_SCL       25     // MPU on GPIO 25
+#define ONE_WIRE_BUS  4      // DS18B20 Data pin on GPIO 4
 
 // --- Display Configuration (SH1106 128x64 on Wire) ---
 #define SCREEN_WIDTH  128
@@ -45,14 +40,13 @@ const char* serverUrl = "https://edgesense-5q6k.onrender.com/api/telemetry";
 
 Adafruit_SH1106G display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// --- Dedicated Second I2C Bus for MPU on Pins 26 & 25 ---
+// --- Second I2C Bus for MPU on Pins 26 & 25 ---
 TwoWire MPU_Wire = TwoWire(1);
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 const int MPU_ADDR = 0x68;
 
-// --- Timing Variables ---
 unsigned long lastSendTime = 0;
 unsigned long lastTempRequestTime = 0;
 const unsigned long sendInterval = 2000;         // Send telemetry every 2 seconds
@@ -62,9 +56,9 @@ float currentTemp = 25.0;                        // Cached temperature variable
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  delay(1000);
 
-  // 1. Initialize OLED on default I2C0 (GPIO 21, 22)
+  // 1. Initialize OLED on default I2C (GPIO 21, 22)
   Wire.begin(OLED_SDA, OLED_SCL);
   Wire.setClock(100000);
 
@@ -79,7 +73,7 @@ void setup() {
   display.println(F("EdgeSense Booting..."));
   display.display();
 
-  // 2. Initialize MPU on dedicated second I2C1 (GPIO 26, 25)
+  // 2. Initialize MPU on second I2C (GPIO 26, 25)
   MPU_Wire.begin(MPU_SDA, MPU_SCL);
   MPU_Wire.setClock(100000);
 
@@ -88,77 +82,50 @@ void setup() {
   MPU_Wire.write(0);
   MPU_Wire.endTransmission(true);
 
-  // 3. Initialize DS18B20 in non-blocking mode
+  // 3. Initialize DS18B20
   sensors.begin();
   sensors.setWaitForConversion(false); // Non-blocking 1-Wire mode
-  sensors.requestTemperatures();       // Initial conversion trigger
+  sensors.requestTemperatures();       // Initial request
 
-  // 4. Connect to Wi-Fi with Station Mode & Timeout Protection
+  // 4. Connect to Wi-Fi
   WiFi.disconnect(true);
   delay(100);
   WiFi.mode(WIFI_STA);
   delay(100);
   WiFi.begin(ssid, password);
 
-  Serial.print("Connecting to Wi-Fi: ");
-  Serial.println(ssid);
-
+  Serial.print("Connecting to Wi-Fi");
   display.setCursor(0, 16);
   display.print(F("Connecting WiFi..."));
   display.display();
-
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+  
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    attempts++;
     Serial.print(".");
-    display.print(".");
-    display.display();
   }
-
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWi-Fi Connected!");
-    display.println(F("WiFi Connected!"));
-    display.setCursor(0, 16);
-    display.print(F("IP: "));
-    display.println(WiFi.localIP());
-    display.display();
-    delay(1000);
-  } else {
-    Serial.println("\nWi-Fi Timeout!");
-    display.println(F("WiFi Timeout!"));
-    display.setCursor(0, 16);
-    display.println(F("Starting Stream..."));
-    display.display();
-    delay(1500);
-  }
+  Serial.println("\nWi-Fi Connected!");
 }
 
 void loop() {
   // Maintain Wi-Fi connection
   if (WiFi.status() != WL_CONNECTED) {
     WiFi.begin(ssid, password);
-    unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 4000) {
-      delay(250);
-    }
+    while (WiFi.status() != WL_CONNECTED) { delay(500); }
   }
 
   unsigned long currentMillis = millis();
 
-  // 1. Non-blocking DS18B20 Temperature Reading (1000ms cadence)
+  // 1. Non-blocking DS18B20 Temperature Reading
   if (currentMillis - lastTempRequestTime >= tempInterval) {
     lastTempRequestTime = currentMillis;
     float tempC = sensors.getTempCByIndex(0);
     if (tempC != DEVICE_DISCONNECTED_C && tempC > -50.0 && tempC < 125.0) {
       currentTemp = tempC; 
     }
-    sensors.requestTemperatures(); // Trigger next conversion for next second
+    sensors.requestTemperatures(); 
   }
 
-  // 2. Read MPU Acceleration Data using MPU_Wire on pins 26 & 25
+  // 2. Read MPU Acceleration Data using MPU_Wire on pins 26/25
   MPU_Wire.beginTransmission(MPU_ADDR);
   MPU_Wire.write(0x3B);
   MPU_Wire.endTransmission(false);
@@ -181,19 +148,18 @@ void loop() {
     vibrationRms = 0.0;
   }
 
-  // Machine Health Evaluation
   String sysStatus = (vibrationRms > 0.6) ? "CRITICAL" : ((vibrationRms > 0.35) ? "WARNING" : "HEALTHY");
 
-  // 3. Update Local SH1106 OLED Display (on dedicated Wire bus)
+  // 3. Update Local SH1106 OLED Display (Restored exact previous screen)
   display.clearDisplay();
   display.setCursor(0, 0);
   display.print(F("=== EDGESENSE LOCAL ==="));
   display.setCursor(0, 12);
-  display.print(F("RMS:  ")); display.print(vibrationRms, 3); display.print(F(" g"));
+  display.print(F("RMS: ")); display.print(vibrationRms, 3); display.print(F(" g"));
   display.setCursor(0, 24);
   display.print(F("Temp: ")); display.print(currentTemp, 1); display.print(F(" C"));
   display.setCursor(0, 36);
-  display.print(F("Stat: ")); display.print(sysStatus);
+  display.print(F("Status: ")); display.print(sysStatus);
   display.setCursor(0, 48);
   display.print(F("Cloud: SYNCED"));
   display.display();
@@ -214,14 +180,14 @@ void loop() {
 
     HTTPClient http;
     WiFiClientSecure client;
-    client.setInsecure(); // Essential for Render HTTPS handshake
+    client.setInsecure(); // Handles Render SSL without requiring certificate thumbprints
 
     http.begin(client, serverUrl);
     http.addHeader("Content-Type", "application/json");
     int httpResponseCode = http.POST(jsonPayload);
     
     if (httpResponseCode > 0) {
-      Serial.println("Telemetry posted successfully to Cloud! Code: " + String(httpResponseCode));
+      Serial.println("Telemetry posted successfully to Cloud!");
     } else {
       Serial.print("HTTP Error: ");
       Serial.println(httpResponseCode);
