@@ -1,0 +1,76 @@
+{
+  "policy": {
+    "vibration_ratio_edges": [
+      1.25,
+      1.6,
+      2.2
+    ],
+    "gyro_ratio_edges": [
+      1.25,
+      1.6,
+      2.2
+    ],
+    "peak_ratio_edges": [
+      1.4,
+      1.9,
+      2.6
+    ],
+    "temp_edges": {
+      "NO_LOAD": [
+        40.0,
+        50.0,
+        65.0
+      ],
+      "ON_LOAD": [
+        50.0,
+        65.0,
+        80.0
+      ]
+    },
+    "load_vibration_tolerance": {
+      "NO_LOAD": 1.0,
+      "ON_LOAD": 1.2
+    },
+    "heating_rate_c_per_min_edges": [
+      1.5,
+      3.0,
+      6.0
+    ],
+    "noise_floor": {
+      "acc_rms": 0.05,
+      "gyro_rms": 0.2,
+      "acc_peak": 0.15
+    },
+    "pattern_anomaly_enabled": true
+  },
+  "baselines": {
+    "0": {
+      "acc_rms": 0.04648082312799474,
+      "gyro_rms": 0.24777655149467107,
+      "acc_peak": 0.09767911941976494,
+      "temp_mean": 17.599243478260867,
+      "n_windows": 46
+    },
+    "1": {
+      "acc_rms": 3.6361876549402856,
+      "gyro_rms": 5.453279730516436,
+      "acc_peak": 5.7773642566858,
+      "temp_mean": 16.156859574468086,
+      "n_windows": 47
+    },
+    "2": {
+      "acc_rms": 2.466959950647752,
+      "gyro_rms": 4.514016195495412,
+      "acc_peak": 4.172620863043199,
+      "temp_mean": 16.09925957446809,
+      "n_windows": 47
+    },
+    "3": {
+      "acc_rms": 4.845999341437606,
+      "gyro_rms": 13.4410294152108,
+      "acc_peak": 8.667859850701133,
+      "temp_mean": 16.053536170212766,
+      "n_windows": 47
+    }
+  }
+}

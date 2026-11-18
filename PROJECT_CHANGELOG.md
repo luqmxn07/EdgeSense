@@ -56,6 +56,22 @@
 
 ## Version History
 
+### v0.6.0 – Python FastAPI & ML Motor Health System with Render Blueprint CI/CD
+**Date:** 19 November 2026
+
+#### Added
+* **FastAPI DC Motor Health Prediction Engine (`motor_health_system/`):**
+  - Integrated pre-trained dual-layer ML architecture (`RandomForest` speed-state classifier and baseline deviation `IsolationForest` anomaly engine).
+  - Configured REST endpoints (`/predict`, `/health`, `/model-info`, `/reload`) in `motor_health_system/app.py` with pydantic request validation and CORS middleware.
+  - Added full Python dependency requirements (`fastapi`, `uvicorn[standard]`, `pydantic`, `scikit-learn`, `pandas`, `numpy`, `scipy`, `joblib`, `matplotlib`).
+* **Root Application & Container Entrypoints:**
+  - Created root [app.py](file:///c:/Users/wwwar/Documents/GitHub/EdgeSense%20Dashboard%20development/app.py) entrypoint proxying requests to `motor_health_system` while ensuring path resolution across all deployment environments.
+  - Added root [Dockerfile](file:///c:/Users/wwwar/Documents/GitHub/EdgeSense%20Dashboard%20development/Dockerfile) and updated `motor_health_system/Dockerfile` with dynamic `${PORT:-8000}` expansion for containerized hosts.
+* **Infrastructure as Code Blueprint (`render.yaml`):**
+  - Configured automated Render CI/CD deployment blueprint defining `edgesense-backend` web service with Python 3.12 environment, automatic GitHub git push deploy triggers, and dynamic CORS configuration.
+
+---
+
 ### v0.5.1 – ESP32 Hardware Integration & Cloud Data Pipeline Ingestion
 **Date:** 13 November 2026
 

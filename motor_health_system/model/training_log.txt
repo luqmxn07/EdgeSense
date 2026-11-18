@@ -1,0 +1,46 @@
+Loading data ...
+label
+0    1196
+1    1206
+2    1203
+3    1203
+
+Train windows: 148   Hold-out windows: 32
+
+[Speed classifier] hold-out accuracy = 100.00 %   macro-F1 = 1.000
+                precision    recall  f1-score   support
+
+           OFF      1.000     1.000     1.000         8
+   SPEED_1_LOW      1.000     1.000     1.000         8
+SPEED_2_MEDIUM      1.000     1.000     1.000         8
+  SPEED_3_HIGH      1.000     1.000     1.000         8
+
+      accuracy                          1.000        32
+     macro avg      1.000     1.000     1.000        32
+  weighted avg      1.000     1.000     1.000        32
+
+[[8 0 0 0]
+ [0 8 0 0]
+ [0 0 8 0]
+ [0 0 0 8]]
+
+Blocked CV accuracy per fold: [100.0, 100.0, 100.0, 100.0, 100.0]  mean = 100.00 %
+
+Healthy hold-out windows reported as HEALTHY/NORMAL (no false alarm):
+   NO_LOAD|commanded_speed             100.00 %
+   NO_LOAD|detected_speed              100.00 %
+   ON_LOAD|commanded_speed             100.00 %
+   ON_LOAD|detected_speed              100.00 %
+
+Synthetic stress test (scales healthy hold-out vibration / adds heat):
+   healthy (x1.0)         HEALTH=100.0%  NORMAL=  0.0%  POTENT=  0.0%  UNHEAL=  0.0%
+   vibration x1.4         HEALTH=  0.0%  NORMAL= 40.6%  POTENT= 59.4%  UNHEAL=  0.0%
+   vibration x1.8         HEALTH=  0.0%  NORMAL=  3.1%  POTENT= 96.9%  UNHEAL=  0.0%
+   vibration x2.5         HEALTH=  0.0%  NORMAL=  0.0%  POTENT=  3.1%  UNHEAL= 96.9%
+   vibration x4.0         HEALTH=  0.0%  NORMAL=  0.0%  POTENT=  0.0%  UNHEAL=100.0%
+   temp +30 C (=~47 C)    HEALTH=  0.0%  NORMAL=100.0%  POTENT=  0.0%  UNHEAL=  0.0%
+   temp +45 C (=~62 C)    HEALTH=  0.0%  NORMAL=  0.0%  POTENT=100.0%  UNHEAL=  0.0%
+   temp +60 C (=~77 C)    HEALTH=  0.0%  NORMAL=  0.0%  POTENT=  0.0%  UNHEAL=100.0%
+
+Saved: /home/claude/work/motor_health_system/model/motor_health_model.joblib
+Saved: /home/claude/work/motor_health_system/model/metrics.json and /home/claude/work/motor_health_system/model/config.json

@@ -54,6 +54,17 @@ package-lock.json
 *.ino.hex
 *.ino.elf
 
+# Python Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
 # Temporary & Log Files
 *.log
 *.tmp

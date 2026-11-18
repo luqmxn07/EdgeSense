@@ -1,0 +1,112 @@
+{
+  "speed_classifier": {
+    "holdout_accuracy_pct": 100.0,
+    "holdout_macro_f1": 1.0,
+    "blocked_cv_accuracy_pct": [
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0
+    ],
+    "blocked_cv_mean_pct": 100.0,
+    "confusion_matrix_rows_true_cols_pred": [
+      [
+        8,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        8,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        8,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        8
+      ]
+    ],
+    "train_windows": 148,
+    "holdout_windows": 32
+  },
+  "health_layer": {
+    "healthy_holdout_not_flagged_pct": {
+      "NO_LOAD|commanded_speed": 100.0,
+      "NO_LOAD|detected_speed": 100.0,
+      "ON_LOAD|commanded_speed": 100.0,
+      "ON_LOAD|detected_speed": 100.0
+    },
+    "synthetic_stress_distribution_pct": {
+      "healthy (x1.0)": {
+        "HEALTHY": 100.0,
+        "NORMAL": 0.0,
+        "POTENTIAL_DAMAGE": 0.0,
+        "UNHEALTHY": 0.0
+      },
+      "vibration x1.4": {
+        "HEALTHY": 0.0,
+        "NORMAL": 40.6,
+        "POTENTIAL_DAMAGE": 59.4,
+        "UNHEALTHY": 0.0
+      },
+      "vibration x1.8": {
+        "HEALTHY": 0.0,
+        "NORMAL": 3.1,
+        "POTENTIAL_DAMAGE": 96.9,
+        "UNHEALTHY": 0.0
+      },
+      "vibration x2.5": {
+        "HEALTHY": 0.0,
+        "NORMAL": 0.0,
+        "POTENTIAL_DAMAGE": 3.1,
+        "UNHEALTHY": 96.9
+      },
+      "vibration x4.0": {
+        "HEALTHY": 0.0,
+        "NORMAL": 0.0,
+        "POTENTIAL_DAMAGE": 0.0,
+        "UNHEALTHY": 100.0
+      },
+      "temp +30 C (=~47 C)": {
+        "HEALTHY": 0.0,
+        "NORMAL": 100.0,
+        "POTENTIAL_DAMAGE": 0.0,
+        "UNHEALTHY": 0.0
+      },
+      "temp +45 C (=~62 C)": {
+        "HEALTHY": 0.0,
+        "NORMAL": 0.0,
+        "POTENTIAL_DAMAGE": 100.0,
+        "UNHEALTHY": 0.0
+      },
+      "temp +60 C (=~77 C)": {
+        "HEALTHY": 0.0,
+        "NORMAL": 0.0,
+        "POTENTIAL_DAMAGE": 0.0,
+        "UNHEALTHY": 100.0
+      }
+    },
+    "note": "Synthetic stress test only checks that severity rises monotonically. It is NOT a measured fault-detection accuracy - no faulty-motor data exists."
+  },
+  "top_features": {
+    "gy_p2p": 0.1036,
+    "ax_p2p": 0.0932,
+    "acc_peak": 0.0922,
+    "gyro_rms": 0.0838,
+    "acc_rms": 0.0692,
+    "ay_std": 0.0659,
+    "az_p2p": 0.0643,
+    "gz_std": 0.0626
+  },
+  "window_samples": 50
+}
