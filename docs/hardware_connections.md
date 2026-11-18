@@ -1,48 +1,59 @@
 # EdgeSense — Hardware Wiring & Interconnection Guide
 
-## 1. Pin Assignment Table
+## 1. Final Consolidated Pin Connection Schedule
 
-### A. MPU6050 Accelerometer & Gyroscope (I2C Bus)
-| MPU6050 Pin | ESP32 Pin | Function | Notes |
-| :--- | :--- | :--- | :--- |
-| **VCC** | `3V3` | Power Supply | 3.3V power (ensure clean decoupling) |
-| **GND** | `GND` | Ground Reference | Common ground |
-| **SCL** | `GPIO 22` | I2C Clock | Default hardware I2C SCL |
-| **SDA** | `GPIO 21` | I2C Data | Default hardware I2C SDA |
-| **AD0** | `GND` | Address Select | Sets I2C address to `0x68` |
-| **INT** | `GPIO 19` | Hardware Interrupt | Optional data-ready interrupt |
-
-### B. DS18B20 Digital Temperature Sensor (Dallas 1-Wire Bus)
-| DS18B20 Pin | ESP32 Pin | Function | Notes |
-| :--- | :--- | :--- | :--- |
-| **VCC (Red)** | `3V3` | Power Supply | 3.0V – 5.5V operating range |
-| **GND (Black)** | `GND` | Ground Reference | Common ground |
-| **DATA (Yellow/White)**| `GPIO 4` | 1-Wire Bidirectional Data | **Requires 4.7kΩ pull-up resistor to 3V3** |
-
-### C. L298N Motor Driver & DC Motor
-| L298N Terminal | Connected Component | Function |
-| :--- | :--- | :--- |
-| **12V In** | External 12V DC Supply | Motor power line (do NOT power from ESP32!) |
-| **GND** | External Supply GND & ESP32 GND | **Common ground must be tied together** |
-| **5V Out** | NC / Optional Logic | Unused if ESP32 is powered via USB |
-| **IN1** | `GPIO 25` | Direction control pin A |
-| **IN2** | `GPIO 26` | Direction control pin B |
-| **ENA** | `GPIO 27` (LEDC PWM) | Motor speed regulation via PWM |
-| **OUT1 & OUT2**| DC Motor Terminals | High-torque brushed DC motor |
+To eliminate I2C bus arbitration collisions and bus capacitance overload between the SH1106 OLED display and the MPU6050/9250 IMU, the ESP32 utilizes two independent hardware I2C controllers (`TwoWire(0)` and `TwoWire(1)`).
 
 ---
 
-## 2. Sensor Placement & Mechanical Mounting Recommendations
+### A. ESP32 Power & Ground Rails
+* **ESP32 3.3V Pin** $\rightarrow$ Breadboard **Positive (3.3V) Power Rail**
+* **ESP32 GND Pin** $\rightarrow$ Breadboard **Negative (GND) Ground Rail**
 
-1. **MPU6050 Mounting:**
+---
+
+### B. SH1106 OLED Display (Hardware I2C0 Bus — `Wire`)
+| Component Pin | ESP32 Pin / Rail | Description |
+| :--- | :--- | :--- |
+| **VCC** | `3V3` Power Rail | 3.3V power supply |
+| **GND** | `GND` Ground Rail | Common ground reference |
+| **SDA** | **GPIO 21** | Hardware I2C0 Data line (`Wire`) |
+| **SCL / SCK** | **GPIO 22** | Hardware I2C0 Clock line (`Wire`) |
+
+---
+
+### C. MPU6050 / MPU9250 6-DOF IMU (Dedicated Hardware I2C1 Bus — `MPU_Wire`)
+| Component Pin | ESP32 Pin / Rail | Description |
+| :--- | :--- | :--- |
+| **VCC** | `3V3` Power Rail | 3.3V power supply |
+| **GND** | `GND` Ground Rail | Common ground reference |
+| **SDA** | **GPIO 26** | Dedicated Hardware I2C1 Data line (`TwoWire(1)`) |
+| **SCL** | **GPIO 25** | Dedicated Hardware I2C1 Clock line (`TwoWire(1)`) |
+| **AD0** | `GND` | Sets I2C device address to `0x68` |
+
+---
+
+### D. DS18B20 Digital Temperature Sensor (Dallas 1-Wire Bus)
+| Component Wire | ESP32 Pin / Rail | Description |
+| :--- | :--- | :--- |
+| **Red Wire (VCC)** | `3V3` Power Rail | 3.3V power supply |
+| **Black Wire (GND)** | `GND` Ground Rail | Common ground reference |
+| **Yellow / White Wire (Data)** | **GPIO 4** | 1-Wire Bidirectional Data bus |
+| **4.7kΩ Pull-Up Resistor** | Between **GPIO 4 (Data)** and **3V3 Rail** | **Mandatory pull-up resistor** for 1-Wire protocol |
+
+---
+
+## 2. Sensor Placement & Mounting Guidelines
+
+1. **MPU6050 / MPU9250 Mounting:**
    * Mount firmly on the **drive-end bearing housing** of the DC motor using rigid industrial adhesive or an M3 bolt bracket.
    * Do not use soft foam tape, as soft materials dampen high-frequency vibration signals and introduce measurement distortion.
-   * Align the X-axis tangentially (radial rotation) and the Z-axis axially along the shaft center line.
+   * Align the X-axis tangentially (radial vibration) and the Z-axis axially along the motor shaft.
 
 2. **DS18B20 Thermal Probe:**
    * Apply thermal heat-sink paste between the stainless-steel probe tip and the mid-section of the motor stator casing.
    * Secure with a thermal cable tie or clamp to maximize conductive thermal transfer and eliminate ambient convective cooling interference.
 
 3. **Grounding & Noise Mitigation:**
-   * Tie all DC grounds (ESP32, L298N, 12V power supply) to a single star-ground point to avoid inductive ground bounce from motor brush sparking.
+   * Tie all DC grounds (ESP32, motor driver, 12V supply) to a single common star-ground point.
    * Solder a 100nF ceramic capacitor across the DC motor terminals to suppress brush-commutator EMI.
