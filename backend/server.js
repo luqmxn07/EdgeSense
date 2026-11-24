@@ -449,7 +449,15 @@ app.get('/api/telemetry/latest', async (req, res) => {
         anomalyScore: isFresh ? latestTelemetryInMemory.anomalyScore : 0.0,
         statusMessage: isFresh
           ? latestTelemetryInMemory.statusMessage
-          : 'No recent telemetry received from ESP32. Waiting for device connection.'
+          : 'No recent telemetry received from ESP32. Waiting for device connection.',
+        system: isFresh ? latestTelemetryInMemory.system : {
+          deviceId: 'ESP32-HARDWARE-01',
+          firmware: latestTelemetryInMemory.system?.firmware || 'v1.4.2-prod',
+          uptimeSeconds: 0,
+          lastUpdate: null,
+          wifiRssi: null,
+          samplingIntervalMs: 0
+        }
       });
     }
 

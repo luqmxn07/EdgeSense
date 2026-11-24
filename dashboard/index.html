@@ -253,19 +253,22 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardSysDeviceId" style="font-size: 1.25rem;">ESP32-HARDWARE-01</span>
+                <span class="val-large" id="cardSysDeviceId" style="font-size: 1.15rem; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                  <span>ESP32-HARDWARE-01</span>
+                  <span style="color: #ef4444; font-size: 0.72rem; font-weight: 700; background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 4px; padding: 2px 7px; letter-spacing: 0.5px;">WAITING (DISCONNECTED)</span>
+                </span>
               </div>
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">ESP32 Status</span>
-                  <span class="meta-item-value" id="cardSysEspStatus">DISCONNECTED</span>
+                  <span class="meta-item-value" id="cardSysEspStatus"><span style="color: #ef4444; font-weight: 700; letter-spacing: 0.5px;">DISCONNECTED</span></span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">System Uptime</span>
-                  <span class="meta-item-value" id="cardSysUptime">0h 2m</span>
+                  <span class="meta-item-value" id="cardSysUptime">--</span>
                 </div>
               </div>
-              <span class="sensor-status-tag offline" id="cardSysLastUpdate">Lost Link</span>
+              <span class="sensor-status-tag offline" id="cardSysLastUpdate">Disconnected</span>
             </div>
 
             <!-- Card 4: Anomaly Detection -->

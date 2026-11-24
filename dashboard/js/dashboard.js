@@ -210,24 +210,49 @@ class EdgeSenseDashboard {
     const uptime = document.getElementById('cardSysUptime');
     const lastUpdate = document.getElementById('cardSysLastUpdate');
 
-    if (devId) devId.textContent = data.system?.deviceId || 'ESP32-HARDWARE-01';
-    if (espConn) {
+    if (devId) {
+      const baseName = data.system?.deviceId || 'ESP32-HARDWARE-01';
       if (data.mode === 'DEMO') {
-        espConn.innerHTML = `<span style="color: var(--cyan-accent); font-weight: 600;">SIMULATED (DEMO)</span>`;
+        devId.innerHTML = `<span>${baseName}</span> <span style="color: var(--cyan-accent); font-size: 0.72rem; font-weight: 700; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); border-radius: 4px; padding: 2px 7px; margin-left: 6px; vertical-align: middle; display: inline-block;">DEMO</span>`;
+      } else if (isConnected) {
+        devId.innerHTML = `<span>${baseName}</span> <span style="color: var(--status-healthy, #10b981); font-size: 0.72rem; font-weight: 700; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 4px; padding: 2px 7px; margin-left: 6px; vertical-align: middle; display: inline-block;">CONNECTED</span>`;
       } else {
-        espConn.innerHTML = isConnected 
-          ? `<span style="color: var(--status-healthy); font-weight: 600;">ONLINE (WI-FI)</span>`
-          : `<span style="color: var(--status-critical); font-weight: 600;">DISCONNECTED</span>`;
+        devId.innerHTML = `<span>${baseName}</span> <span style="color: var(--status-critical, #ef4444); font-size: 0.72rem; font-weight: 700; background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 4px; padding: 2px 7px; margin-left: 6px; vertical-align: middle; display: inline-block;">WAITING (DISCONNECTED)</span>`;
       }
     }
-    if (uptime) {
-      const sec = data.system?.uptimeSeconds || 0;
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      uptime.textContent = `${h}h ${m}m`;
+
+    if (espConn) {
+      if (data.mode === 'DEMO') {
+        espConn.innerHTML = `<span style="color: var(--cyan-accent); font-weight: 700;">SIMULATED (DEMO)</span>`;
+      } else {
+        espConn.innerHTML = isConnected 
+          ? `<span style="color: var(--status-healthy, #10b981); font-weight: 700; letter-spacing: 0.5px;">CONNECTED</span>`
+          : `<span style="color: var(--status-critical, #ef4444); font-weight: 700; letter-spacing: 0.5px;">DISCONNECTED</span>`;
+      }
     }
+
+    if (uptime) {
+      if (!isConnected || (data.mode !== 'DEMO' && !data.esp32Connected)) {
+        uptime.innerHTML = `<span style="color: var(--text-muted, #94a3b8);">--</span>`;
+      } else {
+        const sec = data.system?.uptimeSeconds || 0;
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        uptime.textContent = `${h}h ${m}m`;
+      }
+    }
+
     if (lastUpdate) {
-      lastUpdate.textContent = data.mode === 'DEMO' ? 'Active (Demo)' : (isConnected ? 'Live' : 'Lost Link');
+      if (data.mode === 'DEMO') {
+        lastUpdate.className = 'sensor-status-tag healthy';
+        lastUpdate.textContent = 'Active (Demo)';
+      } else if (isConnected) {
+        lastUpdate.className = 'sensor-status-tag healthy';
+        lastUpdate.textContent = 'Connected';
+      } else {
+        lastUpdate.className = 'sensor-status-tag offline';
+        lastUpdate.textContent = 'Disconnected';
+      }
     }
 
     // 4. Anomaly Detection Card

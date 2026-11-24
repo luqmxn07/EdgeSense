@@ -356,13 +356,20 @@ class EdgeSenseDataService {
           ds18b20: 'DISCONNECTED',
           esp32: 'DISCONNECTED'
         },
-        system: raw.system || {
+        system: isConnected ? (raw.system || {
           deviceId: 'ESP32-HARDWARE-01',
           firmware: 'v1.4.2-prod',
-          uptimeSeconds: isConnected ? (raw.system?.uptimeSeconds || 0) : null,
-          lastUpdate: isConnected ? now : null,
-          wifiRssi: isConnected ? (raw.system?.wifiRssi || -58) : null,
+          uptimeSeconds: raw.system?.uptimeSeconds || 0,
+          lastUpdate: now,
+          wifiRssi: raw.system?.wifiRssi || -58,
           samplingIntervalMs: 20
+        }) : {
+          deviceId: 'ESP32-HARDWARE-01',
+          firmware: 'v1.4.2-prod',
+          uptimeSeconds: null,
+          lastUpdate: null,
+          wifiRssi: null,
+          samplingIntervalMs: 0
         }
       };
 
