@@ -252,7 +252,8 @@ class EdgeSenseAlerts {
     const container = document.getElementById('overviewRecentAlertsList');
     if (!container) return;
 
-    const recent = this.alerts.slice(0, 4);
+    // Show up to 25 recent log events in the scrollable panel
+    const recent = this.alerts.slice(0, 25);
     if (!recent.length) {
       container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.75rem;">No recent alerts recorded.</div>`;
       return;

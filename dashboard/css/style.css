@@ -1010,11 +1010,39 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--status-offline-border);
 }
 
-/* Two-column overview layout (Telemetry preview + Quick Alerts) */
+/* Two-column overview layout (Dual Telemetry previews + Quick Alerts) */
 .overview-bottom-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: 1.65fr 1fr;
   gap: 20px;
+  align-items: stretch;
+}
+
+.overview-charts-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.recent-alerts-overview-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#overviewRecentAlertsList::-webkit-scrollbar {
+  width: 6px;
+}
+#overviewRecentAlertsList::-webkit-scrollbar-track {
+  background: var(--bg-card-inner);
+  border-radius: 4px;
+}
+#overviewRecentAlertsList::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+#overviewRecentAlertsList::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 /* ==========================================================================

@@ -104,13 +104,19 @@ class EdgeSenseDataService {
 
   notify(data) {
     this.latestSnapshot = data;
-    // Only append to rolling graph history if hardware is connected or in demo mode
-    // (Prevents disconnected empty states from cluttering historical trend charts)
-    if (data.mode === 'DEMO' || data.esp32Connected) {
-      this.historyBuffer.push({ ...data });
-      if (this.historyBuffer.length > this.maxHistorySize) {
-        this.historyBuffer.shift();
-      }
+    // Always append to rolling graph history.
+    // When the ESP32 is not connected, record 0.0 so the graph renders a continuous, clean baseline at 0.0.
+    const pt = {
+      ...data,
+      vibrationRMS: typeof data.vibrationRMS === 'number' ? data.vibrationRMS : 0.0,
+      temperature: typeof data.temperature === 'number' ? data.temperature : 0.0,
+      xRMS: typeof data.xRMS === 'number' ? data.xRMS : 0.0,
+      yRMS: typeof data.yRMS === 'number' ? data.yRMS : 0.0,
+      zRMS: typeof data.zRMS === 'number' ? data.zRMS : 0.0,
+    };
+    this.historyBuffer.push(pt);
+    if (this.historyBuffer.length > this.maxHistorySize) {
+      this.historyBuffer.shift();
     }
     this.subscribers.forEach(cb => {
       try {
@@ -447,37 +453,73 @@ class EdgeSenseDataService {
     const points = 180; // 180 points spanning 30 minutes (every 10 seconds)
     const now = Date.now();
     const intervalMs = 10000;
+    const isHw = this.mode === 'HARDWARE';
 
     for (let i = points; i >= 0; i--) {
       const t = now - (i * intervalMs);
-      const wave = Math.sin(t / 80000);
-      const noise = (Math.sin(t / 5000) * 0.015) + ((Math.random() - 0.5) * 0.01);
+      if (isHw) {
+        // In Hardware mode when board is disconnected: steady flat line along zero
+        this.historyBuffer.push({
+          machineId: 'MOTOR_01',
+          vibrationRMS: 0.0,
+          xRMS: 0.0,
+          yRMS: 0.0,
+          zRMS: 0.0,
+          baselineRMS: 0.080,
+          temperature: 0.0,
+          timestamp: t,
+          anomalyScore: 0.0,
+          esp32Connected: false,
+          mode: 'HARDWARE'
+        });
+      } else {
+        const wave = Math.sin(t / 80000);
+        const noise = (Math.sin(t / 5000) * 0.015) + ((Math.random() - 0.5) * 0.01);
+        const spike = (i > 65 && i < 75) ? 0.22 : 0;
+        const rms = parseFloat((0.082 + wave * 0.01 + noise + spike).toFixed(3));
+        const temp = parseFloat((32.8 + wave * 0.8 + (i > 65 && i < 75 ? 2.5 : 0) + (Math.random() * 0.2)).toFixed(2));
 
-      // Add a slight realistic bump around 12 minutes ago for analytical realism
-      const spike = (i > 65 && i < 75) ? 0.22 : 0;
-
-      const rms = parseFloat((0.082 + wave * 0.01 + noise + spike).toFixed(3));
-      const temp = parseFloat((32.8 + wave * 0.8 + (i > 65 && i < 75 ? 2.5 : 0) + (Math.random() * 0.2)).toFixed(2));
-
-      this.historyBuffer.push({
-        machineId: 'MOTOR_01',
-        vibrationRMS: rms,
-        xRMS: parseFloat((rms * 0.55).toFixed(3)),
-        yRMS: parseFloat((rms * 0.52).toFixed(3)),
-        zRMS: parseFloat((rms * 0.40).toFixed(3)),
-        baselineRMS: 0.080,
-        temperature: temp,
-        timestamp: t,
-        anomalyScore: spike > 0 ? 2.1 : 0.3,
-        esp32Connected: false,
-        mode: 'DEMO'
-      });
+        this.historyBuffer.push({
+          machineId: 'MOTOR_01',
+          vibrationRMS: rms,
+          xRMS: parseFloat((rms * 0.55).toFixed(3)),
+          yRMS: parseFloat((rms * 0.52).toFixed(3)),
+          zRMS: parseFloat((rms * 0.40).toFixed(3)),
+          baselineRMS: 0.080,
+          temperature: temp,
+          timestamp: t,
+          anomalyScore: spike > 0 ? 2.1 : 0.3,
+          esp32Connected: false,
+          mode: 'DEMO'
+        });
+      }
     }
   }
 
   getHistory(minutes = 30) {
     const cutoff = Date.now() - (minutes * 60 * 1000);
-    return this.historyBuffer.filter(pt => pt.timestamp >= cutoff);
+    const filtered = this.historyBuffer.filter(pt => pt.timestamp >= cutoff);
+    if (filtered.length >= 2) return filtered;
+
+    // Fallback: If buffer doesn't have sufficient points, supply baseline 0.0 points
+    // so a continuous line at 0.0 is always drawn from 15 minutes ago to now
+    const now = Date.now();
+    const interval = Math.max(10000, Math.floor((minutes * 60 * 1000) / 18));
+    const fallback = [];
+    for (let t = cutoff; t <= now; t += interval) {
+      fallback.push({
+        machineId: 'MOTOR_01',
+        vibrationRMS: 0.0,
+        temperature: 0.0,
+        xRMS: 0.0,
+        yRMS: 0.0,
+        zRMS: 0.0,
+        timestamp: t,
+        esp32Connected: false,
+        mode: this.mode
+      });
+    }
+    return fallback;
   }
 }
 

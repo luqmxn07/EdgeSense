@@ -173,11 +173,11 @@
             <div class="health-metrics-quick">
               <div class="quick-metric-box">
                 <span class="quick-metric-label">Vibration RMS</span>
-                <span class="quick-metric-val" id="heroQuickRms">--</span>
+                <span class="quick-metric-val" id="heroQuickRms">0.000 g</span>
               </div>
               <div class="quick-metric-box">
                 <span class="quick-metric-label">Casing Temp</span>
-                <span class="quick-metric-val" id="heroQuickTemp" style="color: #F59E0B;">--</span>
+                <span class="quick-metric-val" id="heroQuickTemp" style="color: #F59E0B;">0.0 °C</span>
               </div>
             </div>
           </div>
@@ -197,20 +197,20 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardVibRmsVal">--</span>
+                <span class="val-large" id="cardVibRmsVal">0.000</span>
                 <span class="val-unit">g RMS</span>
               </div>
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Baseline RMS</span>
-                  <span class="meta-item-value" id="cardVibBaseVal">--</span>
+                  <span class="meta-item-value" id="cardVibBaseVal">0.080 g</span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Max Recorded</span>
-                  <span class="meta-item-value" id="cardVibMaxVal">--</span>
+                  <span class="meta-item-value" id="cardVibMaxVal">0.082 g</span>
                 </div>
               </div>
-              <span class="sensor-status-tag offline" id="cardVibStatusTag">NO DATA</span>
+              <span class="sensor-status-tag offline" id="cardVibStatusTag">OFFLINE</span>
             </div>
 
             <!-- Card 2: Temperature Monitoring -->
@@ -225,7 +225,7 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardTempVal" style="color: #F59E0B;">--</span>
+                <span class="val-large" id="cardTempVal" style="color: #F59E0B;">0.0</span>
                 <span class="val-unit">°C</span>
               </div>
               <div class="sensor-meta-grid">
@@ -235,10 +235,10 @@
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Thermal Trend</span>
-                  <span class="meta-item-value" id="cardTempTrendVal">--</span>
+                  <span class="meta-item-value" id="cardTempTrendVal">UNKNOWN</span>
                 </div>
               </div>
-              <span class="sensor-status-tag offline" id="cardTempStatusTag">NO DATA</span>
+              <span class="sensor-status-tag offline" id="cardTempStatusTag">OFFLINE</span>
             </div>
 
             <!-- Card 3: System Information -->
@@ -262,7 +262,7 @@
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">System Uptime</span>
-                  <span class="meta-item-value" id="cardSysUptime">--</span>
+                  <span class="meta-item-value" id="cardSysUptime">0h 2m</span>
                 </div>
               </div>
               <span class="sensor-status-tag offline" id="cardSysLastUpdate">Lost Link</span>
@@ -280,46 +280,71 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardAnomalyStatusVal" style="font-size: 1.3rem;">OFFLINE</span>
+                <span class="val-large" id="cardAnomalyStatusVal" style="font-size: 1.3rem;">NORMAL</span>
               </div>
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Anomaly Score</span>
-                  <span class="meta-item-value" id="cardAnomalyScoreVal">--</span>
+                  <span class="meta-item-value" id="cardAnomalyScoreVal">0 σ</span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Detected Alerts</span>
                   <span class="meta-item-value" id="cardAnomalyAlertsVal">0</span>
                 </div>
               </div>
-              <span class="sensor-status-tag offline" id="cardAnomalyMethodVal">No Signal</span>
+              <span class="sensor-status-tag healthy" id="cardAnomalyMethodVal">3-Sigma Z-Score</span>
             </div>
 
           </div>
 
-          <!-- Bottom Row: Telemetry Trend Preview + Recent Alerts -->
+          <!-- Bottom Row: Dual Telemetry Trend Previews (Vibration Upper, Temperature Lower) + Recent Alerts -->
           <div class="overview-bottom-grid">
-            <!-- Mini Telemetry Trend Card -->
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title-group">
-                  <div class="card-title-icon">
-                    <i data-lucide="trending-up"></i>
+            
+            <!-- Left Column: Two Stacked Graphs -->
+            <div class="overview-charts-column">
+              
+              <!-- 1. Vibration Trend Preview Card (Upper) -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title-group">
+                    <div class="card-title-icon" style="color: var(--cyan-accent);">
+                      <i data-lucide="activity"></i>
+                    </div>
+                    <div>
+                      <h3 class="card-title">Vibration Acceleration RMS (g) Trend Preview</h3>
+                      <span class="card-subtitle">Real-time MPU6050 vector vibration RMS (15-min rolling window)</span>
+                    </div>
                   </div>
-                  <div>
-                    <h3 class="card-title">Telemetry Trend Preview (Last 15 Min)</h3>
-                    <span class="card-subtitle">Real-time vector vibration RMS vs motor casing temperature</span>
-                  </div>
+                  <a href="#" class="banner-action-btn" data-jump-view="view-analytics">Full Analytics →</a>
                 </div>
-                <a href="#" class="banner-action-btn" data-jump-view="view-analytics">Full Analytics →</a>
+                <div class="chart-wrapper" style="height: 250px;">
+                  <canvas id="overviewVibrationChart"></canvas>
+                </div>
               </div>
-              <div class="chart-wrapper">
-                <canvas id="overviewTelemetryChart"></canvas>
+
+              <!-- 2. Temperature Trend Preview Card (Lower) -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title-group">
+                    <div class="card-title-icon" style="color: #F59E0B;">
+                      <i data-lucide="thermometer"></i>
+                    </div>
+                    <div>
+                      <h3 class="card-title">Motor Casing Temperature (°C) Trend Preview</h3>
+                      <span class="card-subtitle">Real-time DS18B20 casing thermal profile (15-min rolling window)</span>
+                    </div>
+                  </div>
+                  <a href="#" class="banner-action-btn" data-jump-view="view-analytics">Full Analytics →</a>
+                </div>
+                <div class="chart-wrapper" style="height: 250px;">
+                  <canvas id="overviewTemperatureChart"></canvas>
+                </div>
               </div>
+
             </div>
 
-            <!-- Recent Alerts Card -->
-            <div class="card">
+            <!-- Right Column: Recent Anomaly Events (Taller, Scrollable List) -->
+            <div class="card recent-alerts-overview-card">
               <div class="card-header">
                 <div class="card-title-group">
                   <div class="card-title-icon" style="color: #F59E0B;">
@@ -332,7 +357,7 @@
                 </div>
                 <a href="#" class="banner-action-btn" data-jump-view="view-alerts">View Log →</a>
               </div>
-              <div id="overviewRecentAlertsList" style="margin-top: 10px;">
+              <div id="overviewRecentAlertsList" style="margin-top: 10px; flex: 1; overflow-y: auto; max-height: 570px; padding-right: 6px;">
                 <!-- Dynamically populated by alerts.js -->
               </div>
             </div>
@@ -430,7 +455,7 @@
                 <div class="axis-gauges-container">
                   <div class="axis-gauge-box">
                     <span class="axis-gauge-label">X-Axis (Radial)</span>
-                    <span class="axis-gauge-val" id="gaugeXRms">--</span>
+                    <span class="axis-gauge-val" id="gaugeXRms">0.000 g</span>
                     <div class="axis-meter-bar">
                       <div class="axis-meter-fill" id="barXRms" style="width: 0%;"></div>
                     </div>
@@ -438,7 +463,7 @@
 
                   <div class="axis-gauge-box">
                     <span class="axis-gauge-label">Y-Axis (Radial-Y)</span>
-                    <span class="axis-gauge-val" id="gaugeYRms">--</span>
+                    <span class="axis-gauge-val" id="gaugeYRms">0.000 g</span>
                     <div class="axis-meter-bar">
                       <div class="axis-meter-fill" id="barYRms" style="width: 0%; background-color: #818CF8;"></div>
                     </div>
@@ -446,7 +471,7 @@
 
                   <div class="axis-gauge-box">
                     <span class="axis-gauge-label">Z-Axis (Axial)</span>
-                    <span class="axis-gauge-val" id="gaugeZRms">--</span>
+                    <span class="axis-gauge-val" id="gaugeZRms">0.000 g</span>
                     <div class="axis-meter-bar">
                       <div class="axis-meter-fill" id="barZRms" style="width: 0%; background-color: #C084FC;"></div>
                     </div>

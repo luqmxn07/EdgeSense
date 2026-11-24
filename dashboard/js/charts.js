@@ -7,7 +7,8 @@ class EdgeSenseCharts {
   constructor() {
     this.vibrationChart = null;
     this.temperatureChart = null;
-    this.overviewPreviewChart = null;
+    this.overviewVibrationChart = null;
+    this.overviewTemperatureChart = null;
 
     this.selectedTimeRangeMin = 5; // default 5 minutes
     this.isPaused = false;
@@ -42,7 +43,7 @@ class EdgeSenseCharts {
     Chart.defaults.plugins.legend.labels.boxWidth = 12;
     Chart.defaults.plugins.legend.labels.boxHeight = 12;
 
-    this.createOverviewPreviewChart();
+    this.createOverviewCharts();
     this.createVibrationChart();
     this.createTemperatureChart();
     this.setupEventListeners();
@@ -56,83 +57,151 @@ class EdgeSenseCharts {
   }
 
   /**
-   * 1. Overview Page: Mini Telemetry Dual-Trend Chart
+   * 1. Overview Page: Dual Dedicated Telemetry Previews (Vibration Upper, Temperature Lower)
    */
-  createOverviewPreviewChart() {
-    const ctx = document.getElementById('overviewTelemetryChart');
-    if (!ctx) return;
+  createOverviewCharts() {
+    const ctxVib = document.getElementById('overviewVibrationChart');
+    const ctxTemp = document.getElementById('overviewTemperatureChart');
 
     const history = window.edgeSenseDataService.getHistory(15);
     const labels = history.map(h => this.formatTimeLabel(h.timestamp));
-    const vibData = history.map(h => h.vibrationRMS);
-    const tempData = history.map(h => h.temperature);
+    const vibData = history.map(h => (typeof h.vibrationRMS === 'number' ? h.vibrationRMS : 0.0));
+    const tempData = history.map(h => (typeof h.temperature === 'number' ? h.temperature : 0.0));
 
-    this.overviewPreviewChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Vibration RMS (g)',
-            data: vibData,
-            borderColor: '#22D3EE',
-            backgroundColor: 'rgba(34, 211, 238, 0.08)',
-            borderWidth: 2,
-            tension: 0.35,
-            fill: true,
-            pointRadius: 0,
-            yAxisID: 'yVib'
-          },
-          {
-            label: 'Casing Temp (°C)',
-            data: tempData,
-            borderColor: '#F59E0B',
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            borderDash: [4, 4],
-            tension: 0.3,
-            fill: false,
-            pointRadius: 0,
-            yAxisID: 'yTemp'
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 0 },
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: {
-            position: 'top',
-            align: 'end',
-            labels: { color: '#94A3B8', font: { size: 10 } }
-          }
+    const warnVib = window.edgeSenseDataService.vibrationWarn || 0.35;
+    const critVib = window.edgeSenseDataService.vibrationCrit || 0.60;
+    const warnTemp = window.edgeSenseDataService.tempWarn || 45.0;
+    const critTemp = window.edgeSenseDataService.tempCrit || 55.0;
+
+    // 1A. Vibration Acceleration RMS Chart
+    if (ctxVib) {
+      this.overviewVibrationChart = new Chart(ctxVib, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Vibration RMS (g)',
+              data: vibData,
+              borderColor: '#22D3EE',
+              backgroundColor: 'rgba(34, 211, 238, 0.08)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true,
+              pointRadius: 0
+            },
+            {
+              label: `Warning Threshold (${warnVib.toFixed(2)}g)`,
+              data: history.map(() => warnVib),
+              borderColor: '#F59E0B',
+              borderDash: [5, 4],
+              borderWidth: 1.2,
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: `Critical Threshold (${critVib.toFixed(2)}g)`,
+              data: history.map(() => critVib),
+              borderColor: '#EF4444',
+              borderDash: [4, 4],
+              borderWidth: 1.2,
+              pointRadius: 0,
+              fill: false
+            }
+          ]
         },
-        scales: {
-          x: {
-            grid: { color: 'rgba(255, 255, 255, 0.04)' },
-            ticks: { maxTicksLimit: 8, color: '#64748B' }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: { color: '#94A3B8', boxWidth: 10, font: { size: 10 } }
+            }
           },
-          yVib: {
-            type: 'linear',
-            position: 'left',
-            title: { display: true, text: 'Vibration (g)', color: '#22D3EE', font: { size: 10 } },
-            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            min: 0,
-            suggestedMax: 0.5
-          },
-          yTemp: {
-            type: 'linear',
-            position: 'right',
-            title: { display: true, text: 'Temp (°C)', color: '#F59E0B', font: { size: 10 } },
-            grid: { drawOnChartArea: false },
-            suggestedMin: 25,
-            suggestedMax: 55
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.04)' },
+              ticks: { maxTicksLimit: 10, color: '#64748B' }
+            },
+            y: {
+              title: { display: true, text: 'Vibration (g RMS)', color: '#22D3EE', font: { size: 10 } },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              min: 0,
+              suggestedMax: 0.5
+            }
           }
         }
-      }
-    });
+      });
+    }
+
+    // 1B. Motor Casing Temperature Chart
+    if (ctxTemp) {
+      this.overviewTemperatureChart = new Chart(ctxTemp, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Casing Temp (°C)',
+              data: tempData,
+              borderColor: '#F59E0B',
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true,
+              pointRadius: 0
+            },
+            {
+              label: `Warning Threshold (${warnTemp.toFixed(1)}°C)`,
+              data: history.map(() => warnTemp),
+              borderColor: '#F97316',
+              borderDash: [5, 4],
+              borderWidth: 1.2,
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: `Critical Threshold (${critTemp.toFixed(1)}°C)`,
+              data: history.map(() => critTemp),
+              borderColor: '#EF4444',
+              borderDash: [4, 4],
+              borderWidth: 1.2,
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: { color: '#94A3B8', boxWidth: 10, font: { size: 10 } }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.04)' },
+              ticks: { maxTicksLimit: 10, color: '#64748B' }
+            },
+            y: {
+              title: { display: true, text: 'Temperature (°C)', color: '#F59E0B', font: { size: 10 } },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              min: 0,
+              suggestedMax: 60
+            }
+          }
+        }
+      });
+    }
   }
 
   /**
@@ -349,13 +418,34 @@ class EdgeSenseCharts {
     const history = window.edgeSenseDataService.getHistory(this.selectedTimeRangeMin);
     const labels = history.map(h => this.formatTimeLabel(h.timestamp));
 
-    // Update Overview chart if exists
-    if (this.overviewPreviewChart) {
+    // Update Overview Vibration Chart if exists
+    if (this.overviewVibrationChart) {
       const overviewHistory = window.edgeSenseDataService.getHistory(15);
-      this.overviewPreviewChart.data.labels = overviewHistory.map(h => this.formatTimeLabel(h.timestamp));
-      this.overviewPreviewChart.data.datasets[0].data = overviewHistory.map(h => h.vibrationRMS);
-      this.overviewPreviewChart.data.datasets[1].data = overviewHistory.map(h => h.temperature);
-      this.overviewPreviewChart.update('none');
+      const oLabels = overviewHistory.map(h => this.formatTimeLabel(h.timestamp));
+      const oVib = overviewHistory.map(h => (typeof h.vibrationRMS === 'number' ? h.vibrationRMS : 0.0));
+      const warnVib = window.edgeSenseDataService.vibrationWarn || 0.35;
+      const critVib = window.edgeSenseDataService.vibrationCrit || 0.60;
+
+      this.overviewVibrationChart.data.labels = oLabels;
+      this.overviewVibrationChart.data.datasets[0].data = oVib;
+      this.overviewVibrationChart.data.datasets[1].data = overviewHistory.map(() => warnVib);
+      this.overviewVibrationChart.data.datasets[2].data = overviewHistory.map(() => critVib);
+      this.overviewVibrationChart.update('none');
+    }
+
+    // Update Overview Temperature Chart if exists
+    if (this.overviewTemperatureChart) {
+      const overviewHistory = window.edgeSenseDataService.getHistory(15);
+      const oLabels = overviewHistory.map(h => this.formatTimeLabel(h.timestamp));
+      const oTemp = overviewHistory.map(h => (typeof h.temperature === 'number' ? h.temperature : 0.0));
+      const warnTemp = window.edgeSenseDataService.tempWarn || 45.0;
+      const critTemp = window.edgeSenseDataService.tempCrit || 55.0;
+
+      this.overviewTemperatureChart.data.labels = oLabels;
+      this.overviewTemperatureChart.data.datasets[0].data = oTemp;
+      this.overviewTemperatureChart.data.datasets[1].data = overviewHistory.map(() => warnTemp);
+      this.overviewTemperatureChart.data.datasets[2].data = overviewHistory.map(() => critTemp);
+      this.overviewTemperatureChart.update('none');
     }
 
     // Update Vibration Analytics Chart
