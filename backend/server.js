@@ -85,6 +85,32 @@ async function initDatabase() {
     }
     dbReady = true;
     console.log('[EdgeSense API] PostgreSQL connected and schema verified.');
+
+    // Auto-seed historical alerts into Neon PostgreSQL if table is empty
+    try {
+      const alertCountRes = await pool.query('SELECT COUNT(*)::int AS count FROM anomaly_alerts');
+      if (alertCountRes.rows[0].count === 0) {
+        const initialAlerts = [
+          ['ALT-1092', 'MOTOR_01', 'Abnormal Vibration', 'Vibration RMS reached 0.42g (Threshold: 0.35g). Elevated radial harmonic detected.', 'WARNING', 'ACTIVE'],
+          ['ALT-1091', 'MOTOR_01', 'High Temperature', 'DS18B20 motor casing reading 46.8°C exceeded warning setpoint of 45.0°C.', 'WARNING', 'ACKNOWLEDGED'],
+          ['ALT-1090', 'MOTOR_01', 'Baseline Calibration Completed', 'ESP32 automated statistical baseline recalibrated after 500-sample steady-state window.', 'INFO', 'RESOLVED'],
+          ['ALT-1089', 'MOTOR_01', 'Transient Vibration Spike', 'Instantaneous Z-axis crest factor spiked to 3.82σ during heavy start-up load.', 'WARNING', 'RESOLVED'],
+          ['ALT-1088', 'MOTOR_01', 'ESP32 Wi-Fi Reconnected', 'Telemetry link resumed after momentary access point channel hopping (RSSI -64 dBm).', 'INFO', 'RESOLVED'],
+          ['ALT-1087', 'MOTOR_01', 'Critical Vibration Exceedance', 'Sustained RMS 0.64g exceeded critical limit (0.60g). Severe bearing looseness indicated.', 'CRITICAL', 'RESOLVED']
+        ];
+        for (const a of initialAlerts) {
+          await pool.query(
+            `INSERT INTO anomaly_alerts (alert_code, machine_id, alert_type, description, severity, status)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (alert_code) DO NOTHING`,
+            a
+          );
+        }
+        console.log('[EdgeSense API] Seeded baseline anomaly alerts into PostgreSQL.');
+      }
+    } catch (seedErr) {
+      console.warn('[EdgeSense API] Alert seeding warning:', seedErr.message);
+    }
   } catch (err) {
     dbReady = false;
     console.error('[EdgeSense API] Database initialization warning:', err.message);
@@ -556,6 +582,7 @@ app.post('/api/alerts', async (req, res) => {
     const description = String(req.body.description || 'Alert generated from dashboard.');
     const severity = String(req.body.severity || 'WARNING').toUpperCase();
     const alertCode = req.body.id || `ALT-${Math.floor(1000 + Math.random() * 9000)}`;
+    const status = String(req.body.status || 'ACTIVE').toUpperCase();
     const now = Date.now();
 
     const newAlert = {
@@ -565,17 +592,24 @@ app.post('/api/alerts', async (req, res) => {
       type,
       description,
       severity,
-      status: 'ACTIVE'
+      status
     };
 
-    inMemoryAlerts.unshift(newAlert);
+    const existingMemIndex = inMemoryAlerts.findIndex(a => a.id === alertCode);
+    if (existingMemIndex >= 0) {
+      inMemoryAlerts[existingMemIndex] = newAlert;
+    } else {
+      inMemoryAlerts.unshift(newAlert);
+    }
 
     if (pool && dbReady) {
       try {
         await pool.query(
           `INSERT INTO anomaly_alerts (alert_code, machine_id, alert_type, description, severity, status)
-           VALUES ($1, $2, $3, $4, $5, 'ACTIVE')`,
-          [alertCode, machineId, type, description, severity]
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (alert_code) DO UPDATE
+           SET status = EXCLUDED.status, updated_at = NOW()`,
+          [alertCode, machineId, type, description, severity, status]
         );
       } catch (dbErr) {
         console.warn('[POST /api/alerts] DB write warning:', dbErr.message);

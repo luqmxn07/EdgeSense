@@ -77,6 +77,35 @@ class EdgeSenseAlerts {
     this.renderAlertsTable();
     this.renderOverviewAlertsList();
     this.setupEventListeners();
+    this.fetchAlertsFromBackend();
+  }
+
+  getApiBaseUrl() {
+    const endpoint = window.edgeSenseDataService?.endpointUrl || 'https://edgesense-5q6k.onrender.com';
+    try {
+      const u = new URL(endpoint);
+      return `${u.protocol}//${u.host}`;
+    } catch (e) {
+      return 'https://edgesense-5q6k.onrender.com';
+    }
+  }
+
+  async fetchAlertsFromBackend() {
+    try {
+      const base = this.getApiBaseUrl();
+      const resp = await fetch(`${base}/api/alerts?machineId=MOTOR_01`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && Array.isArray(data.alerts) && data.alerts.length > 0) {
+          this.alerts = data.alerts;
+          this.renderAlertsTable();
+          this.renderOverviewAlertsList();
+          this.updateNotificationBadge();
+        }
+      }
+    } catch (err) {
+      console.warn('[EdgeSense Alerts] Could not fetch alerts from backend, using current state:', err.message);
+    }
   }
 
   formatTimestamp(ts) {
@@ -114,7 +143,7 @@ class EdgeSenseAlerts {
     }
   }
 
-  addAlert({ type, description, severity, machineId }) {
+  async addAlert({ type, description, severity, machineId, status = 'ACTIVE' }) {
     const newAlert = {
       id: `ALT-${Math.floor(1000 + Math.random() * 9000)}`,
       timestamp: Date.now(),
@@ -122,7 +151,7 @@ class EdgeSenseAlerts {
       type,
       description,
       severity: severity || 'WARNING',
-      status: 'ACTIVE'
+      status
     };
 
     this.alerts.unshift(newAlert);
@@ -134,9 +163,21 @@ class EdgeSenseAlerts {
     if (window.edgeSenseDashboard && window.edgeSenseDashboard.showToast) {
       window.edgeSenseDashboard.showToast(`[${severity}] ${type}: ${description}`, severity.toLowerCase());
     }
+
+    // Persist new alert directly to Cloud PostgreSQL
+    try {
+      const base = this.getApiBaseUrl();
+      await fetch(`${base}/api/alerts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAlert)
+      });
+    } catch (e) {
+      console.warn('[EdgeSense Alerts] Failed to persist new alert to PostgreSQL:', e.message);
+    }
   }
 
-  acknowledgeAlert(id) {
+  async acknowledgeAlert(id) {
     const target = this.alerts.find(a => a.id === id);
     if (target && target.status === 'ACTIVE') {
       target.status = 'ACKNOWLEDGED';
@@ -146,10 +187,22 @@ class EdgeSenseAlerts {
       if (window.edgeSenseDashboard) {
         window.edgeSenseDashboard.showToast(`Alert ${id} acknowledged.`, 'warning');
       }
+
+      // Persist status change to Cloud PostgreSQL
+      try {
+        const base = this.getApiBaseUrl();
+        await fetch(`${base}/api/alerts/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'ACKNOWLEDGED' })
+        });
+      } catch (e) {
+        console.warn(`[EdgeSense Alerts] Failed to persist ACK to PostgreSQL for ${id}:`, e.message);
+      }
     }
   }
 
-  resolveAlert(id) {
+  async resolveAlert(id) {
     const target = this.alerts.find(a => a.id === id);
     if (target) {
       target.status = 'RESOLVED';
@@ -158,6 +211,18 @@ class EdgeSenseAlerts {
       this.updateNotificationBadge();
       if (window.edgeSenseDashboard) {
         window.edgeSenseDashboard.showToast(`Alert ${id} marked as resolved.`, 'success');
+      }
+
+      // Persist status change to Cloud PostgreSQL
+      try {
+        const base = this.getApiBaseUrl();
+        await fetch(`${base}/api/alerts/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'RESOLVED' })
+        });
+      } catch (e) {
+        console.warn(`[EdgeSense Alerts] Failed to persist RESOLVE to PostgreSQL for ${id}:`, e.message);
       }
     }
   }
