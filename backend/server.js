@@ -176,18 +176,18 @@ function formatTelemetryRow(row, totalAlerts = 0) {
     statusMessage: isFresh
       ? row.status_message
       : 'No recent telemetry received from ESP32. Waiting for device connection.',
-    vibrationRMS: row.vibration_rms,
-    xRMS: row.x_rms,
-    yRMS: row.y_rms,
-    zRMS: row.z_rms,
-    baselineRMS: row.baseline_rms,
+    vibrationRMS: isFresh ? row.vibration_rms : null,
+    xRMS: isFresh ? row.x_rms : null,
+    yRMS: isFresh ? row.y_rms : null,
+    zRMS: isFresh ? row.z_rms : null,
+    baselineRMS: isFresh ? row.baseline_rms : null,
     vibrationStatus: isFresh ? row.vibration_status : 'OFFLINE',
-    temperature: row.temperature,
+    temperature: isFresh ? row.temperature : null,
     tempTrend: isFresh ? row.temp_trend : 'UNKNOWN',
     tempStatus: isFresh ? row.temp_status : 'OFFLINE',
-    anomalyStatus: isFresh ? row.anomaly_status : 'UNKNOWN',
-    anomalyScore: row.anomaly_score,
-    anomalyMethod: row.anomaly_method,
+    anomalyStatus: isFresh ? row.anomaly_status : 'OFFLINE',
+    anomalyScore: isFresh ? row.anomaly_score : null,
+    anomalyMethod: isFresh ? row.anomaly_method : 'Sensor Disconnected',
     totalAlerts,
     esp32Connected: isFresh,
     mode: 'HARDWARE',
@@ -197,7 +197,7 @@ function formatTelemetryRow(row, totalAlerts = 0) {
       : { mpu6050: 'DISCONNECTED', ds18b20: 'DISCONNECTED', esp32: 'DISCONNECTED' },
     system: {
       ...systemInfo,
-      lastUpdate: recordedMs
+      lastUpdate: isFresh ? recordedMs : null
     }
   };
 }
@@ -412,6 +412,15 @@ app.get('/api/telemetry/latest', async (req, res) => {
         machineStatus: isFresh ? latestTelemetryInMemory.machineStatus : 'OFFLINE',
         vibrationStatus: isFresh ? latestTelemetryInMemory.vibrationStatus : 'OFFLINE',
         tempStatus: isFresh ? latestTelemetryInMemory.tempStatus : 'OFFLINE',
+        vibrationRMS: isFresh ? latestTelemetryInMemory.vibrationRMS : null,
+        xRMS: isFresh ? latestTelemetryInMemory.xRMS : null,
+        yRMS: isFresh ? latestTelemetryInMemory.yRMS : null,
+        zRMS: isFresh ? latestTelemetryInMemory.zRMS : null,
+        baselineRMS: isFresh ? latestTelemetryInMemory.baselineRMS : null,
+        temperature: isFresh ? latestTelemetryInMemory.temperature : null,
+        tempTrend: isFresh ? latestTelemetryInMemory.tempTrend : 'UNKNOWN',
+        anomalyStatus: isFresh ? latestTelemetryInMemory.anomalyStatus : 'OFFLINE',
+        anomalyScore: isFresh ? latestTelemetryInMemory.anomalyScore : null,
         statusMessage: isFresh
           ? latestTelemetryInMemory.statusMessage
           : 'No recent telemetry received from ESP32. Waiting for device connection.'
@@ -423,24 +432,24 @@ app.get('/api/telemetry/latest', async (req, res) => {
       machineId,
       machineStatus: 'OFFLINE',
       statusMessage: 'Waiting for first telemetry reading from ESP32.',
-      vibrationRMS: 0,
-      xRMS: 0,
-      yRMS: 0,
-      zRMS: 0,
-      baselineRMS: 0.080,
+      vibrationRMS: null,
+      xRMS: null,
+      yRMS: null,
+      zRMS: null,
+      baselineRMS: null,
       vibrationStatus: 'OFFLINE',
-      temperature: 0,
+      temperature: null,
       tempTrend: 'UNKNOWN',
       tempStatus: 'OFFLINE',
-      anomalyStatus: 'UNKNOWN',
-      anomalyScore: 0,
-      anomalyMethod: 'Statistical Z-Score (Awaiting Data)',
+      anomalyStatus: 'OFFLINE',
+      anomalyScore: null,
+      anomalyMethod: 'Waiting for device transmission',
       totalAlerts: 0,
       esp32Connected: false,
       mode: 'HARDWARE',
       timestamp: Date.now(),
       sensors: { mpu6050: 'DISCONNECTED', ds18b20: 'DISCONNECTED', esp32: 'DISCONNECTED' },
-      system: { deviceId: 'ESP32-WAITING', firmware: 'N/A', uptimeSeconds: 0, lastUpdate: null }
+      system: { deviceId: 'ESP32-WAITING', firmware: 'N/A', uptimeSeconds: null, lastUpdate: null }
     });
   } catch (err) {
     console.error('[GET /api/telemetry/latest] Error:', err.message);

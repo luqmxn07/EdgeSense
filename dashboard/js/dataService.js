@@ -104,9 +104,13 @@ class EdgeSenseDataService {
 
   notify(data) {
     this.latestSnapshot = data;
-    this.historyBuffer.push({ ...data });
-    if (this.historyBuffer.length > this.maxHistorySize) {
-      this.historyBuffer.shift();
+    // Only append to rolling graph history if hardware is connected or in demo mode
+    // (Prevents disconnected empty states from cluttering historical trend charts)
+    if (data.mode === 'DEMO' || data.esp32Connected) {
+      this.historyBuffer.push({ ...data });
+      if (this.historyBuffer.length > this.maxHistorySize) {
+        this.historyBuffer.shift();
+      }
     }
     this.subscribers.forEach(cb => {
       try {
@@ -308,41 +312,50 @@ class EdgeSenseDataService {
       }
 
       const raw = await response.json();
+      const isConnected = typeof raw.esp32Connected === 'boolean'
+        ? raw.esp32Connected
+        : (raw.machineStatus !== 'OFFLINE');
 
       // Normalize hardware payload against contract
       return {
         machineId: raw.machineId || raw.machine_id || 'MOTOR_01',
-        machineStatus: raw.machineStatus || raw.machine_status || raw.status || 'HEALTHY',
-        statusMessage: raw.statusMessage || 'Live ESP32 telemetry streaming active.',
-        vibrationRMS: typeof raw.vibrationRMS === 'number' ? raw.vibrationRMS : (typeof raw.vibration_rms === 'number' ? raw.vibration_rms : 0.0),
-        xRMS: typeof raw.xRMS === 'number' ? raw.xRMS : (typeof raw.vibration_x === 'number' ? raw.vibration_x : (typeof raw.x_rms === 'number' ? raw.x_rms : 0.0)),
-        yRMS: typeof raw.yRMS === 'number' ? raw.yRMS : (typeof raw.vibration_y === 'number' ? raw.vibration_y : (typeof raw.y_rms === 'number' ? raw.y_rms : 0.0)),
-        zRMS: typeof raw.zRMS === 'number' ? raw.zRMS : (typeof raw.vibration_z === 'number' ? raw.vibration_z : (typeof raw.z_rms === 'number' ? raw.z_rms : 0.0)),
-        baselineRMS: raw.baselineRMS || raw.baseline_rms || 0.080,
-        vibrationStatus: raw.vibrationStatus || raw.vibration_status || 'HEALTHY',
-        temperature: typeof raw.temperature === 'number' ? raw.temperature : (typeof raw.casing_temp === 'number' ? raw.casing_temp : (typeof raw.temp === 'number' ? raw.temp : 0.0)),
-        tempTrend: raw.tempTrend || raw.temp_trend || 'STABLE',
-        tempStatus: raw.tempStatus || raw.temp_status || 'HEALTHY',
+        machineStatus: isConnected ? (raw.machineStatus || raw.machine_status || 'HEALTHY') : 'OFFLINE',
+        statusMessage: isConnected
+          ? (raw.statusMessage || 'Live ESP32 telemetry streaming active.')
+          : (raw.statusMessage || 'No recent telemetry received from ESP32. Waiting for device connection.'),
+        vibrationRMS: (isConnected && typeof raw.vibrationRMS === 'number') ? raw.vibrationRMS : null,
+        xRMS: (isConnected && typeof raw.xRMS === 'number') ? raw.xRMS : null,
+        yRMS: (isConnected && typeof raw.yRMS === 'number') ? raw.yRMS : null,
+        zRMS: (isConnected && typeof raw.zRMS === 'number') ? raw.zRMS : null,
+        baselineRMS: (isConnected && typeof raw.baselineRMS === 'number') ? raw.baselineRMS : null,
+        vibrationStatus: isConnected ? (raw.vibrationStatus || raw.vibration_status || 'HEALTHY') : 'OFFLINE',
+        temperature: (isConnected && typeof raw.temperature === 'number') ? raw.temperature : null,
+        tempTrend: isConnected ? (raw.tempTrend || raw.temp_trend || 'STABLE') : 'UNKNOWN',
+        tempStatus: isConnected ? (raw.tempStatus || raw.temp_status || 'HEALTHY') : 'OFFLINE',
         tempThreshold: this.tempWarn,
         vibrationThreshold: this.vibrationWarn,
-        anomalyStatus: raw.anomalyStatus || raw.anomaly_status || 'NORMAL',
-        anomalyScore: typeof raw.anomalyScore === 'number' ? raw.anomalyScore : (typeof raw.anomaly_score === 'number' ? raw.anomaly_score : 0.0),
-        anomalyMethod: raw.anomalyMethod || raw.anomaly_method || 'Statistical Z-Score & Moving RMS Window',
+        anomalyStatus: isConnected ? (raw.anomalyStatus || raw.anomaly_status || 'NORMAL') : 'OFFLINE',
+        anomalyScore: (isConnected && typeof raw.anomalyScore === 'number') ? raw.anomalyScore : null,
+        anomalyMethod: isConnected ? (raw.anomalyMethod || raw.anomaly_method || 'Statistical Z-Score & Moving RMS Window') : 'ESP32 Disconnected',
         totalAlerts: raw.totalAlerts ?? raw.total_alerts ?? 0,
-        esp32Connected: typeof raw.esp32Connected === 'boolean' ? raw.esp32Connected : true, // Real connection status from API
+        esp32Connected: isConnected,
         mode: 'HARDWARE',
         timestamp: raw.timestamp || now,
-        sensors: raw.sensors || {
+        sensors: isConnected ? (raw.sensors || {
           mpu6050: 'ONLINE',
           ds18b20: 'ONLINE',
           esp32: 'CONNECTED'
+        }) : {
+          mpu6050: 'DISCONNECTED',
+          ds18b20: 'DISCONNECTED',
+          esp32: 'DISCONNECTED'
         },
         system: raw.system || {
           deviceId: 'ESP32-HARDWARE-01',
           firmware: 'v1.4.2-prod',
-          uptimeSeconds: 0,
-          lastUpdate: now,
-          wifiRssi: -58,
+          uptimeSeconds: isConnected ? (raw.system?.uptimeSeconds || 0) : null,
+          lastUpdate: isConnected ? now : null,
+          wifiRssi: isConnected ? (raw.system?.wifiRssi || -58) : null,
           samplingIntervalMs: 20
         }
       };
@@ -353,20 +366,20 @@ class EdgeSenseDataService {
         machineId: 'MOTOR_01',
         machineStatus: 'OFFLINE',
         statusMessage: 'Unable to receive current sensor measurements from ESP32. Waiting for device connection.',
-        vibrationRMS: 0.0,
-        xRMS: 0.0,
-        yRMS: 0.0,
-        zRMS: 0.0,
-        baselineRMS: 0.080,
+        vibrationRMS: null,
+        xRMS: null,
+        yRMS: null,
+        zRMS: null,
+        baselineRMS: null,
         vibrationStatus: 'OFFLINE',
-        temperature: 0.0,
+        temperature: null,
         tempTrend: 'UNKNOWN',
         tempStatus: 'OFFLINE',
         tempThreshold: this.tempWarn,
         vibrationThreshold: this.vibrationWarn,
-        anomalyStatus: 'UNKNOWN',
-        anomalyScore: 0.0,
-        anomalyMethod: 'Statistical Z-Score (ESP32 Disconnected)',
+        anomalyStatus: 'OFFLINE',
+        anomalyScore: null,
+        anomalyMethod: 'ESP32 Disconnected',
         totalAlerts: 0,
         esp32Connected: false, // Explicitly false!
         mode: 'HARDWARE',
@@ -380,9 +393,9 @@ class EdgeSenseDataService {
         system: {
           deviceId: 'ESP32-UNREACHABLE',
           firmware: 'N/A',
-          uptimeSeconds: 0,
+          uptimeSeconds: null,
           lastUpdate: null,
-          wifiRssi: 0,
+          wifiRssi: null,
           samplingIntervalMs: 0
         }
       };

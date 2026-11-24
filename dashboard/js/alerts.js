@@ -90,6 +90,7 @@ class EdgeSenseAlerts {
    * Monitor live telemetry and generate alert if threshold breached
    */
   processLiveTelemetry(telemetry) {
+    if (!telemetry.esp32Connected && telemetry.mode !== 'DEMO') return;
     const now = Date.now();
     // 30s cooldown between automatic alerts
     if (now - this.lastBreachAlertTime < 30000) return;

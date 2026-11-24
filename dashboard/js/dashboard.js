@@ -95,9 +95,10 @@ class EdgeSenseDashboard {
     const sidebarStatusDot = document.getElementById('sidebarStatusDot');
     const sidebarStatusText = document.getElementById('sidebarStatusText');
     if (sidebarStatusDot && sidebarStatusText) {
-      const st = data.machineStatus.toLowerCase();
+      const isConnected = data.mode === 'DEMO' ? true : Boolean(data.esp32Connected);
+      const st = isConnected ? (data.machineStatus || 'HEALTHY').toLowerCase() : 'offline';
       sidebarStatusDot.className = `status-dot ${st} pulse`;
-      sidebarStatusText.textContent = data.mode === 'DEMO' ? `Demo (${data.machineStatus})` : data.machineStatus;
+      sidebarStatusText.textContent = data.mode === 'DEMO' ? `Demo (${data.machineStatus})` : (isConnected ? data.machineStatus : 'OFFLINE');
     }
   }
 
@@ -111,7 +112,8 @@ class EdgeSenseDashboard {
     const quickRms = document.getElementById('heroQuickRms');
     const quickTemp = document.getElementById('heroQuickTemp');
 
-    const status = data.machineStatus || 'HEALTHY';
+    const isConnected = data.mode === 'DEMO' ? true : Boolean(data.esp32Connected);
+    const status = isConnected ? (data.machineStatus || 'HEALTHY') : 'OFFLINE';
     const statusClass = status.toLowerCase();
 
     if (heroCard) {
@@ -124,15 +126,21 @@ class EdgeSenseDashboard {
     }
 
     if (descText) {
-      descText.textContent = data.statusMessage || 'Machine operating within its established baseline.';
+      descText.textContent = isConnected
+        ? (data.statusMessage || 'Machine operating within its established baseline.')
+        : (data.statusMessage || 'No recent telemetry received from ESP32. Waiting for device connection.');
     }
 
     if (quickRms) {
-      quickRms.textContent = `${data.vibrationRMS.toFixed(3)} g`;
+      quickRms.textContent = isConnected && typeof data.vibrationRMS === 'number'
+        ? `${data.vibrationRMS.toFixed(3)} g`
+        : '--';
     }
 
     if (quickTemp) {
-      quickTemp.textContent = `${data.temperature.toFixed(1)} °C`;
+      quickTemp.textContent = isConnected && typeof data.temperature === 'number'
+        ? `${data.temperature.toFixed(1)} °C`
+        : '--';
     }
   }
 
@@ -140,19 +148,38 @@ class EdgeSenseDashboard {
    * Section 5.2: Sensor Overview Cards
    */
   renderSensorCards(data) {
+    const isConnected = data.mode === 'DEMO' ? true : Boolean(data.esp32Connected);
+
     // 1. Vibration Card
     const vibVal = document.getElementById('cardVibRmsVal');
     const vibBase = document.getElementById('cardVibBaseVal');
     const vibMax = document.getElementById('cardVibMaxVal');
     const vibTag = document.getElementById('cardVibStatusTag');
 
-    if (vibVal) vibVal.textContent = data.vibrationRMS.toFixed(3);
-    if (vibBase) vibBase.textContent = `${data.baselineRMS.toFixed(3)} g`;
-    if (vibMax) vibMax.textContent = `${this.maxVibrationSeen.toFixed(3)} g`;
+    if (vibVal) {
+      vibVal.textContent = isConnected && typeof data.vibrationRMS === 'number'
+        ? data.vibrationRMS.toFixed(3)
+        : '--';
+    }
+    if (vibBase) {
+      vibBase.textContent = isConnected && typeof data.baselineRMS === 'number'
+        ? `${data.baselineRMS.toFixed(3)} g`
+        : '--';
+    }
+    if (vibMax) {
+      vibMax.textContent = isConnected && this.maxVibrationSeen > 0
+        ? `${this.maxVibrationSeen.toFixed(3)} g`
+        : '--';
+    }
     if (vibTag) {
-      const st = data.vibrationStatus.toLowerCase();
-      vibTag.className = `sensor-status-tag ${st}`;
-      vibTag.textContent = data.vibrationStatus;
+      if (!isConnected) {
+        vibTag.className = 'sensor-status-tag offline';
+        vibTag.textContent = 'NO DATA';
+      } else {
+        const st = (data.vibrationStatus || 'HEALTHY').toLowerCase();
+        vibTag.className = `sensor-status-tag ${st}`;
+        vibTag.textContent = data.vibrationStatus || 'HEALTHY';
+      }
     }
 
     // 2. Temperature Card
@@ -161,13 +188,28 @@ class EdgeSenseDashboard {
     const tempTrend = document.getElementById('cardTempTrendVal');
     const tempTag = document.getElementById('cardTempStatusTag');
 
-    if (tempVal) tempVal.textContent = data.temperature.toFixed(1);
-    if (tempThresh) tempThresh.textContent = `${data.tempThreshold.toFixed(1)} °C`;
-    if (tempTrend) tempTrend.textContent = data.tempTrend;
+    if (tempVal) {
+      tempVal.textContent = isConnected && typeof data.temperature === 'number'
+        ? data.temperature.toFixed(1)
+        : '--';
+    }
+    if (tempThresh) {
+      tempThresh.textContent = isConnected && typeof data.tempThreshold === 'number'
+        ? `${data.tempThreshold.toFixed(1)} °C`
+        : '--';
+    }
+    if (tempTrend) {
+      tempTrend.textContent = isConnected ? (data.tempTrend || 'STABLE') : '--';
+    }
     if (tempTag) {
-      const st = data.tempStatus.toLowerCase();
-      tempTag.className = `sensor-status-tag ${st}`;
-      tempTag.textContent = data.tempStatus;
+      if (!isConnected) {
+        tempTag.className = 'sensor-status-tag offline';
+        tempTag.textContent = 'NO DATA';
+      } else {
+        const st = (data.tempStatus || 'HEALTHY').toLowerCase();
+        tempTag.className = `sensor-status-tag ${st}`;
+        tempTag.textContent = data.tempStatus || 'HEALTHY';
+      }
     }
 
     // 3. System Information Card
@@ -176,24 +218,28 @@ class EdgeSenseDashboard {
     const uptime = document.getElementById('cardSysUptime');
     const lastUpdate = document.getElementById('cardSysLastUpdate');
 
-    if (devId) devId.textContent = data.system.deviceId;
+    if (devId) devId.textContent = data.system?.deviceId || 'ESP32-HARDWARE-01';
     if (espConn) {
       if (data.mode === 'DEMO') {
         espConn.innerHTML = `<span style="color: var(--cyan-accent); font-weight: 600;">SIMULATED (DEMO)</span>`;
       } else {
-        espConn.innerHTML = data.esp32Connected 
+        espConn.innerHTML = isConnected 
           ? `<span style="color: var(--status-healthy); font-weight: 600;">ONLINE (WI-FI)</span>`
           : `<span style="color: var(--status-critical); font-weight: 600;">DISCONNECTED</span>`;
       }
     }
     if (uptime) {
-      const sec = data.system.uptimeSeconds;
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      uptime.textContent = `${h}h ${m}m`;
+      if (!isConnected || typeof data.system?.uptimeSeconds !== 'number') {
+        uptime.textContent = '--';
+      } else {
+        const sec = data.system.uptimeSeconds;
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        uptime.textContent = `${h}h ${m}m`;
+      }
     }
     if (lastUpdate) {
-      lastUpdate.textContent = data.mode === 'DEMO' ? 'Active (Demo)' : (data.esp32Connected ? 'Live' : 'Lost Link');
+      lastUpdate.textContent = data.mode === 'DEMO' ? 'Active (Demo)' : (isConnected ? 'Live' : 'Lost Link');
     }
 
     // 4. Anomaly Detection Card
@@ -203,20 +249,38 @@ class EdgeSenseDashboard {
     const anomMethod = document.getElementById('cardAnomalyMethodVal');
 
     if (anomStatus) {
-      const isDetected = data.anomalyStatus === 'ANOMALY_DETECTED';
-      anomStatus.innerHTML = isDetected 
-        ? `<span style="color: var(--status-critical); font-weight: 700;">ANOMALY DETECTED</span>`
-        : `<span style="color: var(--status-healthy); font-weight: 600;">NORMAL</span>`;
+      if (!isConnected) {
+        anomStatus.innerHTML = `<span style="color: var(--text-muted); font-weight: 600;">OFFLINE (NO DATA)</span>`;
+      } else {
+        const isDetected = data.anomalyStatus === 'ANOMALY_DETECTED';
+        anomStatus.innerHTML = isDetected 
+          ? `<span style="color: var(--status-critical); font-weight: 700;">ANOMALY DETECTED</span>`
+          : `<span style="color: var(--status-healthy); font-weight: 600;">NORMAL</span>`;
+      }
     }
-    if (anomScore) anomScore.textContent = `${data.anomalyScore} σ`;
-    if (anomAlerts) anomAlerts.textContent = data.totalAlerts;
-    if (anomMethod) anomMethod.textContent = '3-Sigma Z-Score';
+    if (anomScore) {
+      anomScore.textContent = isConnected && typeof data.anomalyScore === 'number'
+        ? `${data.anomalyScore} σ`
+        : '--';
+    }
+    if (anomAlerts) anomAlerts.textContent = isConnected ? (data.totalAlerts ?? 0) : 0;
+    if (anomMethod) {
+      if (!isConnected) {
+        anomMethod.className = 'sensor-status-tag offline';
+        anomMethod.textContent = 'NO SIGNAL';
+      } else {
+        anomMethod.className = 'sensor-status-tag healthy';
+        anomMethod.textContent = data.anomalyMethod || '3-Sigma Z-Score';
+      }
+    }
   }
 
   /**
    * Section 7: Machine Monitoring Detailed View
    */
   renderMachineMonitoring(data) {
+    const isConnected = data.mode === 'DEMO' ? true : Boolean(data.esp32Connected);
+
     // 3-Axis Gauges
     const gaugeX = document.getElementById('gaugeXRms');
     const gaugeY = document.getElementById('gaugeYRms');
@@ -226,16 +290,16 @@ class EdgeSenseDashboard {
     const barY = document.getElementById('barYRms');
     const barZ = document.getElementById('barZRms');
 
-    if (gaugeX) gaugeX.textContent = `${data.xRMS.toFixed(3)} g`;
-    if (gaugeY) gaugeY.textContent = `${data.yRMS.toFixed(3)} g`;
-    if (gaugeZ) gaugeZ.textContent = `${data.zRMS.toFixed(3)} g`;
+    if (gaugeX) gaugeX.textContent = isConnected && typeof data.xRMS === 'number' ? `${data.xRMS.toFixed(3)} g` : '--';
+    if (gaugeY) gaugeY.textContent = isConnected && typeof data.yRMS === 'number' ? `${data.yRMS.toFixed(3)} g` : '--';
+    if (gaugeZ) gaugeZ.textContent = isConnected && typeof data.zRMS === 'number' ? `${data.zRMS.toFixed(3)} g` : '--';
 
     // Max visual meter scale ~0.50g
     const toPct = (val) => Math.min(100, Math.round((val / 0.50) * 100));
 
-    if (barX) barX.style.width = `${toPct(data.xRMS)}%`;
-    if (barY) barY.style.width = `${toPct(data.yRMS)}%`;
-    if (barZ) barZ.style.width = `${toPct(data.zRMS)}%`;
+    if (barX) barX.style.width = isConnected && typeof data.xRMS === 'number' ? `${toPct(data.xRMS)}%` : '0%';
+    if (barY) barY.style.width = isConnected && typeof data.yRMS === 'number' ? `${toPct(data.yRMS)}%` : '0%';
+    if (barZ) barZ.style.width = isConnected && typeof data.zRMS === 'number' ? `${toPct(data.zRMS)}%` : '0%';
 
     // Sensor availability table
     const mpuRow = document.getElementById('sensorStatusMpu');
@@ -243,20 +307,20 @@ class EdgeSenseDashboard {
     const espRow = document.getElementById('sensorStatusEsp');
 
     if (mpuRow) {
-      mpuRow.innerHTML = data.sensors.mpu6050 === 'ONLINE'
+      mpuRow.innerHTML = isConnected && data.sensors?.mpu6050 === 'ONLINE'
         ? `<span class="sensor-status-tag healthy">ONLINE (0x68)</span>`
-        : `<span class="sensor-status-tag critical">FAULT / OFF</span>`;
+        : `<span class="sensor-status-tag offline">OFFLINE / NO DATA</span>`;
     }
     if (dsRow) {
-      dsRow.innerHTML = data.sensors.ds18b20 === 'ONLINE'
+      dsRow.innerHTML = isConnected && data.sensors?.ds18b20 === 'ONLINE'
         ? `<span class="sensor-status-tag healthy">ONLINE (GPIO 4)</span>`
-        : `<span class="sensor-status-tag critical">FAULT / OFF</span>`;
+        : `<span class="sensor-status-tag offline">OFFLINE / NO DATA</span>`;
     }
     if (espRow) {
       if (data.mode === 'DEMO') {
         espRow.innerHTML = `<span class="sensor-status-tag warning">DEMO EMULATION</span>`;
       } else {
-        espRow.innerHTML = data.esp32Connected
+        espRow.innerHTML = isConnected
           ? `<span class="sensor-status-tag healthy">CONNECTED</span>`
           : `<span class="sensor-status-tag critical">DISCONNECTED</span>`;
       }
@@ -266,10 +330,10 @@ class EdgeSenseDashboard {
     const pinMpu = document.getElementById('motorSvgMpuPin');
     const pinDs = document.getElementById('motorSvgDsPin');
     if (pinMpu) {
-      pinMpu.setAttribute('fill', data.vibrationRMS >= window.edgeSenseDataService.vibrationCrit ? '#EF4444' : (data.vibrationRMS >= window.edgeSenseDataService.vibrationWarn ? '#F59E0B' : '#22D3EE'));
+      pinMpu.setAttribute('fill', !isConnected ? '#64748B' : (data.vibrationRMS >= window.edgeSenseDataService.vibrationCrit ? '#EF4444' : (data.vibrationRMS >= window.edgeSenseDataService.vibrationWarn ? '#F59E0B' : '#22D3EE')));
     }
     if (pinDs) {
-      pinDs.setAttribute('fill', data.temperature >= window.edgeSenseDataService.tempCrit ? '#EF4444' : (data.temperature >= window.edgeSenseDataService.tempWarn ? '#F59E0B' : '#10B981'));
+      pinDs.setAttribute('fill', !isConnected ? '#64748B' : (data.temperature >= window.edgeSenseDataService.tempCrit ? '#EF4444' : (data.temperature >= window.edgeSenseDataService.tempWarn ? '#F59E0B' : '#10B981')));
     }
   }
 

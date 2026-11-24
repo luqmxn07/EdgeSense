@@ -173,11 +173,11 @@
             <div class="health-metrics-quick">
               <div class="quick-metric-box">
                 <span class="quick-metric-label">Vibration RMS</span>
-                <span class="quick-metric-val" id="heroQuickRms">0.082 g</span>
+                <span class="quick-metric-val" id="heroQuickRms">--</span>
               </div>
               <div class="quick-metric-box">
                 <span class="quick-metric-label">Casing Temp</span>
-                <span class="quick-metric-val" id="heroQuickTemp" style="color: #F59E0B;">33.2 °C</span>
+                <span class="quick-metric-val" id="heroQuickTemp" style="color: #F59E0B;">--</span>
               </div>
             </div>
           </div>
@@ -197,20 +197,20 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardVibRmsVal">0.082</span>
+                <span class="val-large" id="cardVibRmsVal">--</span>
                 <span class="val-unit">g RMS</span>
               </div>
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Baseline RMS</span>
-                  <span class="meta-item-value" id="cardVibBaseVal">0.080 g</span>
+                  <span class="meta-item-value" id="cardVibBaseVal">--</span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Max Recorded</span>
-                  <span class="meta-item-value" id="cardVibMaxVal">0.085 g</span>
+                  <span class="meta-item-value" id="cardVibMaxVal">--</span>
                 </div>
               </div>
-              <span class="sensor-status-tag healthy" id="cardVibStatusTag">HEALTHY</span>
+              <span class="sensor-status-tag offline" id="cardVibStatusTag">NO DATA</span>
             </div>
 
             <!-- Card 2: Temperature Monitoring -->
@@ -225,7 +225,7 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardTempVal" style="color: #F59E0B;">33.2</span>
+                <span class="val-large" id="cardTempVal" style="color: #F59E0B;">--</span>
                 <span class="val-unit">°C</span>
               </div>
               <div class="sensor-meta-grid">
@@ -235,10 +235,10 @@
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Thermal Trend</span>
-                  <span class="meta-item-value" id="cardTempTrendVal">STABLE</span>
+                  <span class="meta-item-value" id="cardTempTrendVal">--</span>
                 </div>
               </div>
-              <span class="sensor-status-tag healthy" id="cardTempStatusTag">HEALTHY</span>
+              <span class="sensor-status-tag offline" id="cardTempStatusTag">NO DATA</span>
             </div>
 
             <!-- Card 3: System Information -->
@@ -253,19 +253,19 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardSysDeviceId" style="font-size: 1.25rem;">ESP32-NODE-01</span>
+                <span class="val-large" id="cardSysDeviceId" style="font-size: 1.25rem;">ESP32-HARDWARE-01</span>
               </div>
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">ESP32 Status</span>
-                  <span class="meta-item-value" id="cardSysEspStatus">ONLINE</span>
+                  <span class="meta-item-value" id="cardSysEspStatus">DISCONNECTED</span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">System Uptime</span>
                   <span class="meta-item-value" id="cardSysUptime">--</span>
                 </div>
               </div>
-              <span class="sensor-status-tag healthy" id="cardSysLastUpdate">Live</span>
+              <span class="sensor-status-tag offline" id="cardSysLastUpdate">Lost Link</span>
             </div>
 
             <!-- Card 4: Anomaly Detection -->
@@ -280,19 +280,19 @@
                 </div>
               </div>
               <div class="sensor-primary-val">
-                <span class="val-large" id="cardAnomalyStatusVal" style="font-size: 1.3rem;">NORMAL</span>
+                <span class="val-large" id="cardAnomalyStatusVal" style="font-size: 1.3rem;">OFFLINE</span>
               </div>
               <div class="sensor-meta-grid">
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Anomaly Score</span>
-                  <span class="meta-item-value" id="cardAnomalyScoreVal">0.24 σ</span>
+                  <span class="meta-item-value" id="cardAnomalyScoreVal">--</span>
                 </div>
                 <div class="sensor-meta-item">
                   <span class="meta-item-label">Detected Alerts</span>
-                  <span class="meta-item-value" id="cardAnomalyAlertsVal">3</span>
+                  <span class="meta-item-value" id="cardAnomalyAlertsVal">0</span>
                 </div>
               </div>
-              <span class="sensor-status-tag healthy" id="cardAnomalyMethodVal">3-Sigma Z-Score</span>
+              <span class="sensor-status-tag offline" id="cardAnomalyMethodVal">No Signal</span>
             </div>
 
           </div>
@@ -430,25 +430,25 @@
                 <div class="axis-gauges-container">
                   <div class="axis-gauge-box">
                     <span class="axis-gauge-label">X-Axis (Radial)</span>
-                    <span class="axis-gauge-val" id="gaugeXRms">0.052 g</span>
+                    <span class="axis-gauge-val" id="gaugeXRms">--</span>
                     <div class="axis-meter-bar">
-                      <div class="axis-meter-fill" id="barXRms" style="width: 25%;"></div>
+                      <div class="axis-meter-fill" id="barXRms" style="width: 0%;"></div>
                     </div>
                   </div>
 
                   <div class="axis-gauge-box">
                     <span class="axis-gauge-label">Y-Axis (Radial-Y)</span>
-                    <span class="axis-gauge-val" id="gaugeYRms">0.048 g</span>
+                    <span class="axis-gauge-val" id="gaugeYRms">--</span>
                     <div class="axis-meter-bar">
-                      <div class="axis-meter-fill" id="barYRms" style="width: 22%; background-color: #818CF8;"></div>
+                      <div class="axis-meter-fill" id="barYRms" style="width: 0%; background-color: #818CF8;"></div>
                     </div>
                   </div>
 
                   <div class="axis-gauge-box">
                     <span class="axis-gauge-label">Z-Axis (Axial)</span>
-                    <span class="axis-gauge-val" id="gaugeZRms">0.042 g</span>
+                    <span class="axis-gauge-val" id="gaugeZRms">--</span>
                     <div class="axis-meter-bar">
-                      <div class="axis-meter-fill" id="barZRms" style="width: 18%; background-color: #C084FC;"></div>
+                      <div class="axis-meter-fill" id="barZRms" style="width: 0%; background-color: #C084FC;"></div>
                     </div>
                   </div>
                 </div>
