@@ -1,10 +1,11 @@
 /**
- * EdgeSense ESP32 Live Telemetry Firmware (Restored Production Build)
+ * EdgeSense ESP32 Live Telemetry Firmware (Restored Production Build with Audio Alert System)
  * 
  * Hardware Pin Schedule:
  * - OLED SH1106: Dedicated Hardware I2C0 (Wire)      -> SDA: GPIO 21, SCL: GPIO 22
  * - MPU6050/9250: Dedicated Hardware I2C1 (MPU_Wire) -> SDA: GPIO 26, SCL: GPIO 25
  * - DS18B20 Temp: 1-Wire                             -> DATA: GPIO 4 (with 4.7k pull-up to 3.3V)
+ * - Buzzer Alert: PWM / Digital Output               -> (+) to GPIO 18, (-) to GND
  * - Power: 3.3V and GND Rails
  * 
  * Target: Render Cloud Backend (feeds live Vercel Dashboard)
@@ -20,8 +21,8 @@
 #include <Adafruit_SH110X.h>
 
 // --- Wi-Fi Credentials ---
-const char* ssid = "rubythroat";
-const char* password = "alfa1234beta5678";
+const char* ssid = "CYBER GHOST";
+const char* password = "Ishan 2007";
 
 // --- Cloud Backend Endpoint (feeds Vercel Dashboard) ---
 const char* serverUrl = "https://edgesense-5q6k.onrender.com/api/telemetry";
@@ -32,6 +33,11 @@ const char* serverUrl = "https://edgesense-5q6k.onrender.com/api/telemetry";
 #define MPU_SDA       26     // MPU on GPIO 26
 #define MPU_SCL       25     // MPU on GPIO 25
 #define ONE_WIRE_BUS  4      // DS18B20 Data pin on GPIO 4
+#define BUZZER_PIN    18     // Buzzer positive (+) pin on GPIO 18
+
+// Set to true if you are using a 2-pin passive buzzer (supports frequency pitch modulation)
+// Set to false if you are using a standard active buzzer (HIGH=ON, LOW=OFF)
+#define USE_PASSIVE_BUZZER false
 
 // --- Display Configuration (SH1106 128x64 on Wire) ---
 #define SCREEN_WIDTH  128
@@ -54,9 +60,88 @@ const unsigned long tempInterval = 1000;         // Request temperature every 1 
 
 float currentTemp = 25.0;                        // Cached temperature variable
 
+// --- Non-blocking Buzzer State Machine ---
+unsigned long lastBuzzerToggle = 0;
+bool buzzerActive = false;
+
+void soundBuzzer(bool on, int freqHz) {
+  if (USE_PASSIVE_BUZZER) {
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+    if (on) { tone(BUZZER_PIN, freqHz); } else { noTone(BUZZER_PIN); }
+#else
+    if (on) {
+      ledcAttachPin(BUZZER_PIN, 0);
+      ledcWriteTone(0, freqHz);
+    } else {
+      ledcWriteTone(0, 0);
+      pinMode(BUZZER_PIN, OUTPUT);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
+#endif
+  } else {
+    // Active Buzzer (Direct Digital Logic)
+    digitalWrite(BUZZER_PIN, on ? HIGH : LOW);
+  }
+}
+
+/**
+ * Non-blocking Audio Alert Engine
+ * - CRITICAL (Loud / Urgent): Rapid 120ms ON / 80ms OFF loud pulse (2800 Hz resonance peak)
+ * - WARNING (Mild): Short gentle 80ms chirp once every 1500ms (900 Hz soft tone)
+ * - HEALTHY: Completely silent
+ */
+void updateBuzzer(String status) {
+  unsigned long now = millis();
+
+  if (status == "CRITICAL") {
+    // Loud, urgent rapid alarm (120ms ON, 80ms OFF)
+    if (buzzerActive) {
+      if (now - lastBuzzerToggle >= 120) {
+        buzzerActive = false;
+        lastBuzzerToggle = now;
+        soundBuzzer(false, 0);
+      }
+    } else {
+      if (now - lastBuzzerToggle >= 80) {
+        buzzerActive = true;
+        lastBuzzerToggle = now;
+        soundBuzzer(true, 2800); // 2.8 kHz is the loudest resonant acoustic peak
+      }
+    }
+  } 
+  else if (status == "WARNING") {
+    // Mild, non-intrusive warning blip (80ms chirp every 1.5 seconds)
+    if (buzzerActive) {
+      if (now - lastBuzzerToggle >= 80) {
+        buzzerActive = false;
+        lastBuzzerToggle = now;
+        soundBuzzer(false, 0);
+      }
+    } else {
+      if (now - lastBuzzerToggle >= 1500) {
+        buzzerActive = true;
+        lastBuzzerToggle = now;
+        soundBuzzer(true, 900); // 900 Hz gentle alert tone
+      }
+    }
+  } 
+  else {
+    // Normal / Healthy: Silence buzzer immediately
+    if (buzzerActive) {
+      buzzerActive = false;
+      soundBuzzer(false, 0);
+    }
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  // Initialize Buzzer GPIO
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 
   // 1. Initialize OLED on default I2C (GPIO 21, 22)
   Wire.begin(OLED_SDA, OLED_SCL);
@@ -87,6 +172,11 @@ void setup() {
   sensors.setWaitForConversion(false); // Non-blocking 1-Wire mode
   sensors.requestTemperatures();       // Initial request
 
+  // Quick boot beep to verify buzzer hardware
+  soundBuzzer(true, 1500);
+  delay(100);
+  soundBuzzer(false, 0);
+
   // 4. Connect to Wi-Fi
   WiFi.disconnect(true);
   delay(100);
@@ -115,7 +205,7 @@ void loop() {
 
   unsigned long currentMillis = millis();
 
-  // 1. Non-blocking DS18B20 Temperature Reading
+  // 1. Non-blocking DS18B20 Temperature Reading (every 1s)
   if (currentMillis - lastTempRequestTime >= tempInterval) {
     lastTempRequestTime = currentMillis;
     float tempC = sensors.getTempCByIndex(0);
@@ -148,7 +238,16 @@ void loop() {
     vibrationRms = 0.0;
   }
 
-  String sysStatus = (vibrationRms > 0.6) ? "CRITICAL" : ((vibrationRms > 0.35) ? "WARNING" : "HEALTHY");
+  // Multi-modal health classification (ISO-10816 Vibration & DS18B20 Temperature)
+  String sysStatus = "HEALTHY";
+  if (vibrationRms > 0.60 || currentTemp > 60.0) {
+    sysStatus = "CRITICAL";
+  } else if (vibrationRms > 0.35 || currentTemp > 45.0) {
+    sysStatus = "WARNING";
+  }
+
+  // Non-blocking Buzzer Alert Update
+  updateBuzzer(sysStatus);
 
   // 3. Update Local SH1106 OLED Display (Restored exact previous screen)
   display.clearDisplay();
