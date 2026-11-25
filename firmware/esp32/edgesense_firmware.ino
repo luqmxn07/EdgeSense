@@ -53,12 +53,35 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 const int MPU_ADDR = 0x68;
 
+// --- High-Speed Windowed RMS Sampling & Filter Variables ---
+unsigned long lastSampleTime = 0;
 unsigned long lastSendTime = 0;
 unsigned long lastTempRequestTime = 0;
-const unsigned long sendInterval = 2000;         // Send telemetry every 2 seconds
-const unsigned long tempInterval = 1000;         // Request temperature every 1 second
+unsigned long lastDisplayTime = 0;
 
+const unsigned long sampleInterval = 20;         // 20ms = 50 Hz continuous sampling cadence
+const unsigned long sendInterval = 2000;         // Send windowed telemetry every 2 seconds
+const unsigned long tempInterval = 1000;         // Request temperature every 1 second
+const unsigned long displayInterval = 250;       // Update OLED 4 times per second (smooth, non-blocking)
+
+// Static Gravity Vector Tracking (Exponential Moving Average / High-Pass Filter)
+float gravX = 0.0, gravY = 0.0, gravZ = -1.0;
+bool gravInitialized = false;
+const float gravAlpha = 0.96;                    // Low-pass factor: tracks static tilt/orientation while isolating dynamic AC vibration
+
+// Running Window Accumulators (computed over the 2-second telemetry window)
+float sumSqX = 0.0;
+float sumSqY = 0.0;
+float sumSqZ = 0.0;
+unsigned long windowSampleCount = 0;
+
+// Cached Telemetry Values
+float latestTotalRms = 0.0;
+float latestRmsX = 0.0;
+float latestRmsY = 0.0;
+float latestRmsZ = 0.0;
 float currentTemp = 25.0;                        // Cached temperature variable
+String currentSysStatus = "HEALTHY";
 
 // --- Non-blocking Buzzer State Machine ---
 unsigned long lastBuzzerToggle = 0;
@@ -167,6 +190,12 @@ void setup() {
   MPU_Wire.write(0);
   MPU_Wire.endTransmission(true);
 
+  // Configure Digital Low Pass Filter (DLPF = 44 Hz) to remove RF noise while preserving motor harmonics
+  MPU_Wire.beginTransmission(MPU_ADDR);
+  MPU_Wire.write(0x1A);
+  MPU_Wire.write(0x03);
+  MPU_Wire.endTransmission(true);
+
   // 3. Initialize DS18B20
   sensors.begin();
   sensors.setWaitForConversion(false); // Non-blocking 1-Wire mode
@@ -215,66 +244,93 @@ void loop() {
     sensors.requestTemperatures(); 
   }
 
-  // 2. Read MPU Acceleration Data using MPU_Wire on pins 26/25
-  MPU_Wire.beginTransmission(MPU_ADDR);
-  MPU_Wire.write(0x3B);
-  MPU_Wire.endTransmission(false);
-  MPU_Wire.requestFrom(MPU_ADDR, 6, true);
+  // 2. High-Speed 50 Hz Continuous MPU Sampling (every 20ms)
+  if (currentMillis - lastSampleTime >= sampleInterval) {
+    lastSampleTime = currentMillis;
 
-  int16_t axRaw = (MPU_Wire.read() << 8 | MPU_Wire.read());
-  int16_t ayRaw = (MPU_Wire.read() << 8 | MPU_Wire.read());
-  int16_t azRaw = (MPU_Wire.read() << 8 | MPU_Wire.read());
+    MPU_Wire.beginTransmission(MPU_ADDR);
+    MPU_Wire.write(0x3B);
+    MPU_Wire.endTransmission(false);
+    MPU_Wire.requestFrom(MPU_ADDR, 6, true);
 
-  float ax = axRaw / 16384.0;
-  float ay = ayRaw / 16384.0;
-  float az = azRaw / 16384.0;
-  
-  // Calculate true 3D vector magnitude and subtract 1.0g gravity baseline
-  float totalMagnitude = sqrt(ax * ax + ay * ay + az * az);
-  float vibrationRms = abs(totalMagnitude - 1.0);
+    if (MPU_Wire.available() >= 6) {
+      int16_t axRaw = (MPU_Wire.read() << 8 | MPU_Wire.read());
+      int16_t ayRaw = (MPU_Wire.read() << 8 | MPU_Wire.read());
+      int16_t azRaw = (MPU_Wire.read() << 8 | MPU_Wire.read());
 
-  // Apply deadband filter to eliminate minor sensor noise when stationary
-  if (vibrationRms < 0.01) {
-    vibrationRms = 0.0;
+      float ax = axRaw / 16384.0;
+      float ay = ayRaw / 16384.0;
+      float az = azRaw / 16384.0;
+
+      // Initialize static gravity reference vector on first sample
+      if (!gravInitialized) {
+        gravX = ax;
+        gravY = ay;
+        gravZ = az;
+        gravInitialized = true;
+      } else {
+        // High-pass filter: Low-pass EMA filter continuously isolates static gravity & mounting tilt
+        gravX = gravAlpha * gravX + (1.0 - gravAlpha) * ax;
+        gravY = gravAlpha * gravY + (1.0 - gravAlpha) * ay;
+        gravZ = gravAlpha * gravZ + (1.0 - gravAlpha) * az;
+      }
+
+      // Dynamic AC vibration component (true deviation from static gravity reference)
+      float dynX = ax - gravX;
+      float dynY = ay - gravY;
+      float dynZ = az - gravZ;
+
+      // Accumulate squares over the 2-second continuous window
+      sumSqX += (dynX * dynX);
+      sumSqY += (dynY * dynY);
+      sumSqZ += (dynZ * dynZ);
+      windowSampleCount++;
+    }
   }
 
-  // Multi-modal health classification (ISO-10816 Vibration & DS18B20 Temperature)
-  String sysStatus = "HEALTHY";
-  if (vibrationRms > 0.60 || currentTemp > 60.0) {
-    sysStatus = "CRITICAL";
-  } else if (vibrationRms > 0.35 || currentTemp > 45.0) {
-    sysStatus = "WARNING";
-  }
-
-  // Non-blocking Buzzer Alert Update
-  updateBuzzer(sysStatus);
-
-  // 3. Update Local SH1106 OLED Display (Restored exact previous screen)
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.print(F("=== EDGESENSE LOCAL ==="));
-  display.setCursor(0, 12);
-  display.print(F("RMS: ")); display.print(vibrationRms, 3); display.print(F(" g"));
-  display.setCursor(0, 24);
-  display.print(F("Temp: ")); display.print(currentTemp, 1); display.print(F(" C"));
-  display.setCursor(0, 36);
-  display.print(F("Status: ")); display.print(sysStatus);
-  display.setCursor(0, 48);
-  display.print(F("Cloud: SYNCED"));
-  display.display();
-
-  // 4. Send Telemetry to Cloud API every 2 seconds
+  // 3. Compute True Windowed RMS & Send Telemetry to Cloud API every 2 seconds
   if (currentMillis - lastSendTime >= sendInterval) {
     lastSendTime = currentMillis;
 
+    if (windowSampleCount > 0) {
+      latestRmsX = sqrt(sumSqX / windowSampleCount);
+      latestRmsY = sqrt(sumSqY / windowSampleCount);
+      latestRmsZ = sqrt(sumSqZ / windowSampleCount);
+      latestTotalRms = sqrt(latestRmsX * latestRmsX + latestRmsY * latestRmsY + latestRmsZ * latestRmsZ);
+
+      // Clean deadband filter: suppress ambient resting sensor noise floor below 0.010g
+      if (latestTotalRms < 0.010) {
+        latestTotalRms = 0.0;
+        latestRmsX = 0.0;
+        latestRmsY = 0.0;
+        latestRmsZ = 0.0;
+      }
+
+      // Reset window accumulators for next 2-second window
+      sumSqX = 0.0;
+      sumSqY = 0.0;
+      sumSqZ = 0.0;
+      windowSampleCount = 0;
+    }
+
+    // Health state classification (ISO-10816 Vibration & DS18B20 Temperature)
+    if (latestTotalRms > 0.60 || currentTemp > 60.0) {
+      currentSysStatus = "CRITICAL";
+    } else if (latestTotalRms > 0.35 || currentTemp > 45.0) {
+      currentSysStatus = "WARNING";
+    } else {
+      currentSysStatus = "HEALTHY";
+    }
+
+    // Dispatch JSON payload to Render Backend
     String jsonPayload = "{";
     jsonPayload += "\"machine_id\": \"MOTOR_01\",";
-    jsonPayload += "\"vibration_rms\":" + String(vibrationRms, 4) + ",";
-    jsonPayload += "\"vibration_x\":" + String(ax, 4) + ",";
-    jsonPayload += "\"vibration_y\":" + String(ay, 4) + ",";
-    jsonPayload += "\"vibration_z\":" + String(az, 4) + ",";
+    jsonPayload += "\"vibration_rms\":" + String(latestTotalRms, 4) + ",";
+    jsonPayload += "\"vibration_x\":" + String(latestRmsX, 4) + ",";
+    jsonPayload += "\"vibration_y\":" + String(latestRmsY, 4) + ",";
+    jsonPayload += "\"vibration_z\":" + String(latestRmsZ, 4) + ",";
     jsonPayload += "\"casing_temp\":" + String(currentTemp, 2) + ",";
-    jsonPayload += "\"status\": \"" + sysStatus + "\"";
+    jsonPayload += "\"status\": \"" + currentSysStatus + "\"";
     jsonPayload += "}";
 
     HTTPClient http;
@@ -292,7 +348,28 @@ void loop() {
       Serial.println(httpResponseCode);
     }
     http.end();
+
+    // Re-align sampling timer after network latency
+    lastSampleTime = millis();
   }
 
-  delay(50);
+  // 4. Non-blocking Buzzer Alert State Update
+  updateBuzzer(currentSysStatus);
+
+  // 5. Update Local SH1106 OLED Display (4 Hz refresh, smooth & non-blocking)
+  if (currentMillis - lastDisplayTime >= displayInterval) {
+    lastDisplayTime = currentMillis;
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.print(F("=== EDGESENSE LOCAL ==="));
+    display.setCursor(0, 12);
+    display.print(F("RMS: ")); display.print(latestTotalRms, 3); display.print(F(" g"));
+    display.setCursor(0, 24);
+    display.print(F("Temp: ")); display.print(currentTemp, 1); display.print(F(" C"));
+    display.setCursor(0, 36);
+    display.print(F("Status: ")); display.print(currentSysStatus);
+    display.setCursor(0, 48);
+    display.print(F("Cloud: SYNCED"));
+    display.display();
+  }
 }
