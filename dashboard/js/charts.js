@@ -575,9 +575,125 @@ class EdgeSenseCharts {
     return this.visibleAxes[axisKey];
   }
 
-  exportHistoryCSV() {
-    const history = window.edgeSenseDataService.getHistory(this.selectedTimeRangeMin, this.scrollOffsetSec);
-    if (!history.length) return;
+  formatDateTimeLocal(d) {
+    if (!d || isNaN(d.getTime())) d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  openCsvExportModal() {
+    const backdrop = document.getElementById('csvExportModalBackdrop');
+    if (!backdrop) return;
+
+    // Calculate current visible window on chart
+    const currentEndMs = Date.now() - (this.scrollOffsetSec * 1000);
+    const currentStartMs = currentEndMs - (this.selectedTimeRangeMin * 60 * 1000);
+
+    const fromInput = document.getElementById('csvExportFrom');
+    const toInput = document.getElementById('csvExportTo');
+    if (fromInput) fromInput.value = this.formatDateTimeLocal(new Date(currentStartMs));
+    if (toInput) toInput.value = this.formatDateTimeLocal(new Date(currentEndMs));
+
+    // Reset preset chips to 'view'
+    document.querySelectorAll('.export-preset-chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.preset === 'view');
+    });
+
+    this.updateCsvExportSummary();
+
+    backdrop.style.display = 'flex';
+    requestAnimationFrame(() => backdrop.classList.add('show'));
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  closeCsvExportModal() {
+    const backdrop = document.getElementById('csvExportModalBackdrop');
+    if (!backdrop) return;
+    backdrop.classList.remove('show');
+    setTimeout(() => { backdrop.style.display = 'none'; }, 220);
+  }
+
+  updateCsvExportSummary() {
+    const fromInput = document.getElementById('csvExportFrom');
+    const toInput = document.getElementById('csvExportTo');
+    const filterCheckbox = document.getElementById('csvFilterSynthetic');
+    if (!fromInput || !toInput) return;
+
+    const startMs = new Date(fromInput.value).getTime();
+    const endMs = new Date(toInput.value).getTime();
+
+    const startValEl = document.getElementById('csvSummaryStart');
+    const endValEl = document.getElementById('csvSummaryEnd');
+    const durationValEl = document.getElementById('csvSummaryDuration');
+    const countValEl = document.getElementById('csvSummaryCount');
+    const confirmBtnText = document.getElementById('confirmExportCsvText');
+
+    if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) {
+      if (startValEl) startValEl.textContent = 'Invalid Time';
+      if (endValEl) endValEl.textContent = 'Invalid Time';
+      if (durationValEl) durationValEl.textContent = '--';
+      if (countValEl) countValEl.textContent = '0 rows';
+      if (confirmBtnText) confirmBtnText.textContent = 'Select Valid Range';
+      return;
+    }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const formatTimeOnly = (ms) => {
+      const d = new Date(ms);
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    };
+
+    if (startValEl) startValEl.textContent = formatTimeOnly(startMs);
+    if (endValEl) endValEl.textContent = formatTimeOnly(endMs);
+
+    // Calculate duration
+    const diffSec = Math.round((endMs - startMs) / 1000);
+    let durStr = `${diffSec}s`;
+    if (diffSec >= 3600) {
+      durStr = `${(diffSec / 3600).toFixed(1)} hrs`;
+    } else if (diffSec >= 60) {
+      durStr = `${(diffSec / 60).toFixed(1)} mins`;
+    }
+    if (durationValEl) durationValEl.textContent = durStr;
+
+    // Count records in buffer
+    const filterSynthetic = filterCheckbox ? filterCheckbox.checked : true;
+    const records = window.edgeSenseDataService 
+      ? window.edgeSenseDataService.getRangeHistory(startMs, endMs, filterSynthetic)
+      : [];
+
+    const rowCount = records.length;
+    if (countValEl) countValEl.textContent = `${rowCount} rows`;
+    if (confirmBtnText) confirmBtnText.textContent = `Download CSV (${rowCount} Rows)`;
+  }
+
+  async exportHistoryCSVByRange(startMs, endMs, filterSynthetic = true, syncDb = false) {
+    if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) {
+      if (window.edgeSenseDashboard?.showToast) {
+        window.edgeSenseDashboard.showToast('Please select a valid start and end time range.', 'warning');
+      }
+      return;
+    }
+
+    // Optional: Fetch older points from Cloud API/PostgreSQL if requested
+    if (syncDb && window.edgeSenseDataService?.fetchHistoryRange) {
+      try {
+        await window.edgeSenseDataService.fetchHistoryRange(startMs, endMs);
+      } catch (e) {
+        console.warn('Database range sync error:', e);
+      }
+    }
+
+    const history = window.edgeSenseDataService 
+      ? window.edgeSenseDataService.getRangeHistory(startMs, endMs, filterSynthetic)
+      : [];
+
+    if (!history.length) {
+      if (window.edgeSenseDashboard?.showToast) {
+        window.edgeSenseDashboard.showToast('No recorded telemetry found in the selected range.', 'warning');
+      }
+      return;
+    }
 
     let csv = 'Timestamp,ISO_Time,Machine_ID,Vibration_RMS_g,X_RMS_g,Y_RMS_g,Z_RMS_g,Temp_C,Status,Mode\n';
     history.forEach(row => {
@@ -589,10 +705,26 @@ class EdgeSenseCharts {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `EdgeSense_MOTOR_01_Telemetry_${Date.now()}.csv`);
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const d1 = new Date(startMs);
+    const d2 = new Date(endMs);
+    const startTag = `${d1.getFullYear()}${pad(d1.getMonth()+1)}${pad(d1.getDate())}_${pad(d1.getHours())}${pad(d1.getMinutes())}`;
+    const endTag = `${pad(d2.getHours())}${pad(d2.getMinutes())}`;
+
+    link.setAttribute('download', `EdgeSense_MOTOR_01_${startTag}_to_${endTag}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    this.closeCsvExportModal();
+    if (window.edgeSenseDashboard?.showToast) {
+      window.edgeSenseDashboard.showToast(`Exported ${history.length} telemetry records to CSV.`, 'healthy');
+    }
+  }
+
+  exportHistoryCSV() {
+    this.openCsvExportModal();
   }
 
   setupEventListeners() {
@@ -693,7 +825,163 @@ class EdgeSenseCharts {
     // Export CSV button
     const exportBtn = document.getElementById('exportCsvBtn');
     if (exportBtn) {
-      exportBtn.addEventListener('click', () => this.exportHistoryCSV());
+      exportBtn.addEventListener('click', () => this.openCsvExportModal());
+    }
+
+    // CSV Export Modal listeners
+    const closeCsvBtn = document.getElementById('closeCsvModalBtn');
+    const cancelCsvBtn = document.getElementById('cancelCsvModalBtn');
+    const backdrop = document.getElementById('csvExportModalBackdrop');
+    if (closeCsvBtn) closeCsvBtn.addEventListener('click', () => this.closeCsvExportModal());
+    if (cancelCsvBtn) cancelCsvBtn.addEventListener('click', () => this.closeCsvExportModal());
+    if (backdrop) {
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) this.closeCsvExportModal();
+      });
+    }
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && backdrop && backdrop.classList.contains('show')) {
+        this.closeCsvExportModal();
+      }
+    });
+
+    // Preset Chips
+    document.querySelectorAll('.export-preset-chip').forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        document.querySelectorAll('.export-preset-chip').forEach(c => c.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        const preset = e.currentTarget.dataset.preset;
+        const now = Date.now();
+        const fInput = document.getElementById('csvExportFrom');
+        const tInput = document.getElementById('csvExportTo');
+
+        if (!fInput || !tInput) return;
+
+        if (preset === 'view') {
+          const currentEndMs = now - (this.scrollOffsetSec * 1000);
+          const currentStartMs = currentEndMs - (this.selectedTimeRangeMin * 60 * 1000);
+          fInput.value = this.formatDateTimeLocal(new Date(currentStartMs));
+          tInput.value = this.formatDateTimeLocal(new Date(currentEndMs));
+        } else if (preset === '1m') {
+          fInput.value = this.formatDateTimeLocal(new Date(now - 60 * 1000));
+          tInput.value = this.formatDateTimeLocal(new Date(now));
+        } else if (preset === '5m') {
+          fInput.value = this.formatDateTimeLocal(new Date(now - 5 * 60 * 1000));
+          tInput.value = this.formatDateTimeLocal(new Date(now));
+        } else if (preset === '15m') {
+          fInput.value = this.formatDateTimeLocal(new Date(now - 15 * 60 * 1000));
+          tInput.value = this.formatDateTimeLocal(new Date(now));
+        } else if (preset === '30m') {
+          fInput.value = this.formatDateTimeLocal(new Date(now - 30 * 60 * 1000));
+          tInput.value = this.formatDateTimeLocal(new Date(now));
+        } else if (preset === '1h') {
+          fInput.value = this.formatDateTimeLocal(new Date(now - 60 * 60 * 1000));
+          tInput.value = this.formatDateTimeLocal(new Date(now));
+        } else if (preset === 'all') {
+          const buffer = window.edgeSenseDataService?.historyBuffer || [];
+          const firstMs = buffer.length > 0 ? buffer[0].timestamp : (now - 3600 * 1000);
+          fInput.value = this.formatDateTimeLocal(new Date(firstMs));
+          tInput.value = this.formatDateTimeLocal(new Date(now));
+        } else if (preset === 'custom') {
+          fInput.focus();
+        }
+
+        this.updateCsvExportSummary();
+      });
+    });
+
+    // Helper Buttons
+    const setFromViewStartBtn = document.getElementById('setFromViewStartBtn');
+    if (setFromViewStartBtn) {
+      setFromViewStartBtn.addEventListener('click', () => {
+        const fInput = document.getElementById('csvExportFrom');
+        const currentEndMs = Date.now() - (this.scrollOffsetSec * 1000);
+        const currentStartMs = currentEndMs - (this.selectedTimeRangeMin * 60 * 1000);
+        if (fInput) fInput.value = this.formatDateTimeLocal(new Date(currentStartMs));
+        this.updateCsvExportSummary();
+      });
+    }
+
+    const setFrom5mBtn = document.getElementById('setFrom5mBtn');
+    if (setFrom5mBtn) {
+      setFrom5mBtn.addEventListener('click', () => {
+        const fInput = document.getElementById('csvExportFrom');
+        const tInput = document.getElementById('csvExportTo');
+        const endMs = tInput ? new Date(tInput.value).getTime() : Date.now();
+        if (fInput && !isNaN(endMs)) {
+          fInput.value = this.formatDateTimeLocal(new Date(endMs - 5 * 60 * 1000));
+        }
+        this.updateCsvExportSummary();
+      });
+    }
+
+    const setFrom1hBtn = document.getElementById('setFrom1hBtn');
+    if (setFrom1hBtn) {
+      setFrom1hBtn.addEventListener('click', () => {
+        const fInput = document.getElementById('csvExportFrom');
+        const tInput = document.getElementById('csvExportTo');
+        const endMs = tInput ? new Date(tInput.value).getTime() : Date.now();
+        if (fInput && !isNaN(endMs)) {
+          fInput.value = this.formatDateTimeLocal(new Date(endMs - 60 * 60 * 1000));
+        }
+        this.updateCsvExportSummary();
+      });
+    }
+
+    const setToViewEndBtn = document.getElementById('setToViewEndBtn');
+    if (setToViewEndBtn) {
+      setToViewEndBtn.addEventListener('click', () => {
+        const tInput = document.getElementById('csvExportTo');
+        const currentEndMs = Date.now() - (this.scrollOffsetSec * 1000);
+        if (tInput) tInput.value = this.formatDateTimeLocal(new Date(currentEndMs));
+        this.updateCsvExportSummary();
+      });
+    }
+
+    const setToNowBtn = document.getElementById('setToNowBtn');
+    if (setToNowBtn) {
+      setToNowBtn.addEventListener('click', () => {
+        const tInput = document.getElementById('csvExportTo');
+        if (tInput) tInput.value = this.formatDateTimeLocal(new Date());
+        this.updateCsvExportSummary();
+      });
+    }
+
+    // Input listeners
+    const fromIn = document.getElementById('csvExportFrom');
+    const toIn = document.getElementById('csvExportTo');
+    const filterCb = document.getElementById('csvFilterSynthetic');
+    if (fromIn) fromIn.addEventListener('input', () => this.updateCsvExportSummary());
+    if (toIn) toIn.addEventListener('input', () => this.updateCsvExportSummary());
+    if (filterCb) filterCb.addEventListener('change', () => this.updateCsvExportSummary());
+
+    // Confirm Download Button
+    const confirmBtn = document.getElementById('confirmExportCsvBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async () => {
+        const fInput = document.getElementById('csvExportFrom');
+        const tInput = document.getElementById('csvExportTo');
+        const filterCheckbox = document.getElementById('csvFilterSynthetic');
+        const syncDbCheckbox = document.getElementById('csvSyncDatabase');
+
+        if (!fInput || !tInput) return;
+        const startMs = new Date(fInput.value).getTime();
+        const endMs = new Date(tInput.value).getTime();
+        const filterSynth = filterCheckbox ? filterCheckbox.checked : true;
+        const syncDb = syncDbCheckbox ? syncDbCheckbox.checked : false;
+
+        confirmBtn.disabled = true;
+        const originalText = confirmBtn.innerHTML;
+        confirmBtn.innerHTML = `<span>Exporting...</span>`;
+
+        try {
+          await this.exportHistoryCSVByRange(startMs, endMs, filterSynth, syncDb);
+        } finally {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = originalText;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      });
     }
 
     // Axis toggles

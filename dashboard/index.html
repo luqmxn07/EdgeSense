@@ -1155,6 +1155,154 @@
     </div>
   </div>
 
+  <!-- Export Telemetry CSV Modal / Range Selector -->
+  <div class="modal-backdrop" id="csvExportModalBackdrop" style="display: none;">
+    <div class="modal-card csv-export-modal" id="csvExportModal" role="dialog" aria-labelledby="csvModalTitle" aria-modal="true">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon">
+            <i data-lucide="download"></i>
+          </div>
+          <div>
+            <h3 class="modal-title" id="csvModalTitle">Export Telemetry CSV</h3>
+            <p class="modal-subtitle">Configure exact time window, start/end range, and scope for telemetry export</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeCsvModalBtn" title="Close modal" type="button">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Quick Range Presets -->
+        <div class="export-section">
+          <label class="export-section-label">
+            <i data-lucide="clock"></i>
+            <span>Select Time Range Preset</span>
+          </label>
+          <div class="export-preset-grid">
+            <button type="button" class="export-preset-chip active" data-preset="view">
+              <i data-lucide="scan"></i>
+              <span>Current Chart View</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="1m">
+              <span>Last 1 Min</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="5m">
+              <span>Last 5 Min</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="15m">
+              <span>Last 15 Min</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="30m">
+              <span>Last 30 Min</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="1h">
+              <span>Last 1 Hour</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="all">
+              <span>All Stored Data</span>
+            </button>
+            <button type="button" class="export-preset-chip" data-preset="custom">
+              <i data-lucide="calendar"></i>
+              <span>Custom Range</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom From / To Boundary Inputs -->
+        <div class="export-section" id="customRangeSection">
+          <label class="export-section-label">
+            <i data-lucide="calendar-range"></i>
+            <span>Export Boundaries (From — To)</span>
+          </label>
+          <div class="export-range-inputs">
+            <div class="export-input-col">
+              <span class="export-input-caption">From (Start Date & Time)</span>
+              <div class="export-input-wrapper">
+                <input type="datetime-local" step="1" id="csvExportFrom" class="export-datetime-input">
+              </div>
+              <div class="export-input-helpers">
+                <button type="button" class="export-helper-btn" id="setFromViewStartBtn">
+                  <span>View Start</span>
+                </button>
+                <button type="button" class="export-helper-btn" id="setFrom5mBtn">
+                  <span>-5 Min</span>
+                </button>
+                <button type="button" class="export-helper-btn" id="setFrom1hBtn">
+                  <span>-1 Hour</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="export-range-divider">
+              <i data-lucide="arrow-right"></i>
+            </div>
+
+            <div class="export-input-col">
+              <span class="export-input-caption">To (End Date & Time)</span>
+              <div class="export-input-wrapper">
+                <input type="datetime-local" step="1" id="csvExportTo" class="export-datetime-input">
+              </div>
+              <div class="export-input-helpers">
+                <button type="button" class="export-helper-btn" id="setToViewEndBtn">
+                  <span>View End</span>
+                </button>
+                <button type="button" class="export-helper-btn" id="setToNowBtn">
+                  <span>Now (Live)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scope & Quality Options -->
+        <div class="export-section export-options-row">
+          <label class="export-checkbox-label">
+            <input type="checkbox" id="csvSyncDatabase" checked>
+            <span>Query Remote Cloud Database (Fetch from PostgreSQL if points are older)</span>
+          </label>
+          <label class="export-checkbox-label">
+            <input type="checkbox" id="csvFilterSynthetic" checked>
+            <span>Exclude synthetic offline fallback zero rows</span>
+          </label>
+        </div>
+
+        <!-- Live Range Summary Box -->
+        <div class="export-summary-card">
+          <div class="summary-stat-row">
+            <div class="summary-stat">
+              <span class="summary-stat-label">START TIME</span>
+              <span class="summary-stat-val" id="csvSummaryStart">--:--:--</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-stat-label">END TIME</span>
+              <span class="summary-stat-val" id="csvSummaryEnd">--:--:--</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-stat-label">SPAN DURATION</span>
+              <span class="summary-stat-val" id="csvSummaryDuration">--</span>
+            </div>
+            <div class="summary-stat highlight">
+              <span class="summary-stat-label">RECORDS FOUND</span>
+              <span class="summary-stat-val" id="csvSummaryCount">0 rows</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="cancelCsvModalBtn">
+          <span>Cancel</span>
+        </button>
+        <button type="button" class="btn-primary" id="confirmExportCsvBtn">
+          <i data-lucide="download"></i>
+          <span id="confirmExportCsvText">Download CSV (0 Rows)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Global Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 

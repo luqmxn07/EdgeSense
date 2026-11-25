@@ -495,20 +495,48 @@ app.get('/api/telemetry/history', async (req, res) => {
   try {
     const machineId = String(req.query.machineId || 'MOTOR_01');
     const minutes = Math.min(Math.max(parseInt(req.query.minutes, 10) || 30, 1), 1440);
+    const fromParam = req.query.from || req.query.start;
+    const toParam = req.query.to || req.query.end;
 
-    // 1. Try PostgreSQL
+    let fromMs = null;
+    let toMs = null;
+    if (fromParam) {
+      fromMs = !isNaN(Number(fromParam)) ? Number(fromParam) : new Date(fromParam).getTime();
+    }
+    if (toParam) {
+      toMs = !isNaN(Number(toParam)) ? Number(toParam) : new Date(toParam).getTime();
+    }
+
+    // 1. Try PostgreSQL if database is ready
     if (pool && dbReady) {
       try {
-        const result = await pool.query(
-          `SELECT machine_id, machine_status, vibration_rms, x_rms, y_rms, z_rms,
-                  baseline_rms, temperature, anomaly_score, recorded_at
-           FROM telemetry_readings
-           WHERE machine_id = $1
-             AND recorded_at >= NOW() - ($2 || ' minutes')::interval
-           ORDER BY recorded_at ASC
-           LIMIT 1000`,
-          [machineId, minutes]
-        );
+        let querySql = '';
+        let queryParams = [];
+
+        if (fromMs !== null && toMs !== null) {
+          querySql = `
+            SELECT machine_id, machine_status, vibration_rms, x_rms, y_rms, z_rms,
+                   baseline_rms, temperature, anomaly_score, recorded_at
+            FROM telemetry_readings
+            WHERE machine_id = $1
+              AND recorded_at >= $2
+              AND recorded_at <= $3
+            ORDER BY recorded_at ASC
+            LIMIT 5000`;
+          queryParams = [machineId, new Date(fromMs).toISOString(), new Date(toMs).toISOString()];
+        } else {
+          querySql = `
+            SELECT machine_id, machine_status, vibration_rms, x_rms, y_rms, z_rms,
+                   baseline_rms, temperature, anomaly_score, recorded_at
+            FROM telemetry_readings
+            WHERE machine_id = $1
+              AND recorded_at >= NOW() - ($2 || ' minutes')::interval
+            ORDER BY recorded_at ASC
+            LIMIT 2000`;
+          queryParams = [machineId, minutes];
+        }
+
+        const result = await pool.query(querySql, queryParams);
 
         if (result.rows.length > 0) {
           const points = result.rows.map((r) => ({
@@ -533,8 +561,13 @@ app.get('/api/telemetry/history', async (req, res) => {
     }
 
     // 2. Return in-memory history points
-    const cutoff = Date.now() - minutes * 60 * 1000;
-    const points = historyInMemory.filter(p => p.machineId === machineId && p.timestamp >= cutoff);
+    let points = [];
+    if (fromMs !== null && toMs !== null) {
+      points = historyInMemory.filter(p => p.machineId === machineId && p.timestamp >= fromMs && p.timestamp <= toMs);
+    } else {
+      const cutoff = Date.now() - minutes * 60 * 1000;
+      points = historyInMemory.filter(p => p.machineId === machineId && p.timestamp >= cutoff);
+    }
     res.json({ machineId, minutes, count: points.length, points });
   } catch (err) {
     console.error('[GET /api/telemetry/history] Error:', err.message);

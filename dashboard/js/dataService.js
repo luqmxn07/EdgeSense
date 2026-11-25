@@ -568,6 +568,59 @@ class EdgeSenseDataService {
     }
     return fallback;
   }
+
+  /**
+   * Retrieves recorded telemetry points between an explicit start timestamp and end timestamp.
+   * @param {number} startMs - Epoch millisecond start
+   * @param {number} endMs - Epoch millisecond end
+   * @param {boolean} filterSynthetic - If true, strips synthetic disconnected padding zeros
+   */
+  getRangeHistory(startMs, endMs, filterSynthetic = true) {
+    const s = Math.min(startMs, endMs);
+    const e = Math.max(startMs, endMs);
+    let rows = this.historyBuffer.filter(pt => pt.timestamp >= s && pt.timestamp <= e);
+    
+    if (filterSynthetic && rows.length > 0) {
+      // Exclude generated fallback points where board was disconnected
+      const realRows = rows.filter(r => !(r.vibrationRMS === 0 && r.xRMS === 0 && r.temperature === 0 && r.esp32Connected === false && r.mode === 'DEMO'));
+      if (realRows.length > 0) {
+        rows = realRows;
+      }
+    }
+    return rows;
+  }
+
+  /**
+   * Fetches remote historical points from Cloud API/PostgreSQL between startMs and endMs.
+   */
+  async fetchHistoryRange(startMs, endMs) {
+    if (this.mode !== 'HARDWARE') return [];
+    try {
+      const url = new URL(this.endpointUrl);
+      const historyUrl = `${url.origin}/api/telemetry/history?machineId=MOTOR_01&from=${startMs}&to=${endMs}`;
+      const resp = await fetch(historyUrl, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (Array.isArray(json.points) && json.points.length > 0) {
+          const existing = new Set(this.historyBuffer.map(p => p.timestamp));
+          const newPts = json.points.filter(p => !existing.has(p.timestamp));
+          if (newPts.length > 0) {
+            this.historyBuffer.push(...newPts);
+            this.historyBuffer.sort((a, b) => a.timestamp - b.timestamp);
+            if (this.historyBuffer.length > this.maxHistorySize) {
+              this.historyBuffer = this.historyBuffer.slice(-this.maxHistorySize);
+            }
+          }
+          return json.points;
+        }
+      }
+    } catch (e) {
+      console.warn('[EdgeSense DataService] Remote range history sync notice:', e.message);
+    }
+    return [];
+  }
 }
 
 // Global instance export

@@ -180,6 +180,27 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  /* CSV Export Modal Responsive */
+  .export-preset-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .export-range-inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .export-range-divider {
+    transform: rotate(90deg);
+    padding: 0;
+    align-self: center;
+  }
+
+  .summary-stat-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
 }
 
 /* Print Styles */
