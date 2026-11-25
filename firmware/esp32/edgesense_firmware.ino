@@ -35,6 +35,14 @@ const char* serverUrl = "https://edgesense-5q6k.onrender.com/api/telemetry";
 #define ONE_WIRE_BUS  4      // DS18B20 Data pin on GPIO 4
 #define BUZZER_PIN    18     // Buzzer positive (+) pin on GPIO 18
 
+// --- 6-LED Severity Ladder Pins (Continuous Single-Side Layout) ---
+#define LED_G1        13     // Green 1: Baseline running (> 0.02g) on D13
+#define LED_G2        12     // Green 2: Low operating speed (> 0.12g) on D12
+#define LED_G3        14     // Green 3: Normal full speed (> 0.22g) on D14
+#define LED_R1        27     // Red 1: Warning threshold (> 0.35g) on D27
+#define LED_R2        33     // Red 2: Elevated vibration (> 0.48g) on D33
+#define LED_R3        32     // Red 3: Critical alarm (> 0.60g) on D32
+
 // Set to true if you are using a 2-pin passive buzzer (supports frequency pitch modulation)
 // Set to false if you are using a standard active buzzer (HIGH=ON, LOW=OFF)
 #define USE_PASSIVE_BUZZER false
@@ -158,6 +166,32 @@ void updateBuzzer(String status) {
   }
 }
 
+/**
+ * 6-LED Dynamic Severity Ladder
+ * - Progressive VU meter for vibration: G1 -> G2 -> G3 -> R1 -> R2 -> R3
+ * - CRITICAL: All 3 red LEDs strobe rapidly in sync with acoustic buzzer alarm
+ */
+void updateLEDs(float rms, String status) {
+  if (status == "CRITICAL" || rms >= 0.60) {
+    digitalWrite(LED_G1, HIGH);
+    digitalWrite(LED_G2, HIGH);
+    digitalWrite(LED_G3, HIGH);
+    bool blink = ((millis() / 120) % 2 == 0);
+    digitalWrite(LED_R1, blink ? HIGH : LOW);
+    digitalWrite(LED_R2, blink ? HIGH : LOW);
+    digitalWrite(LED_R3, blink ? HIGH : LOW);
+    return;
+  }
+
+  // Progressive Bargraph thresholds:
+  digitalWrite(LED_G1, (rms > 0.02) ? HIGH : LOW);  // G1: Motor active / baseline
+  digitalWrite(LED_G2, (rms > 0.12) ? HIGH : LOW);  // G2: Low-medium operating speed
+  digitalWrite(LED_G3, (rms > 0.22) ? HIGH : LOW);  // G3: Normal steady speed
+  digitalWrite(LED_R1, (rms > 0.35) ? HIGH : LOW);  // R1: Warning threshold exceeded
+  digitalWrite(LED_R2, (rms > 0.48) ? HIGH : LOW);  // R2: Elevated vibration / looseness
+  digitalWrite(LED_R3, (rms > 0.58) ? HIGH : LOW);  // R3: Near critical
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -165,6 +199,25 @@ void setup() {
   // Initialize Buzzer GPIO
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
+
+  // Initialize 6 LED Severity Ladder GPIOs
+  pinMode(LED_G1, OUTPUT);
+  pinMode(LED_G2, OUTPUT);
+  pinMode(LED_G3, OUTPUT);
+  pinMode(LED_R1, OUTPUT);
+  pinMode(LED_R2, OUTPUT);
+  pinMode(LED_R3, OUTPUT);
+
+  // Quick startup LED sweep to verify each LED connection
+  const int testLeds[] = {LED_G1, LED_G2, LED_G3, LED_R1, LED_R2, LED_R3};
+  for (int i = 0; i < 6; i++) {
+    digitalWrite(testLeds[i], HIGH);
+    delay(70);
+    digitalWrite(testLeds[i], LOW);
+  }
+  for (int i = 0; i < 6; i++) digitalWrite(testLeds[i], HIGH);
+  delay(150);
+  for (int i = 0; i < 6; i++) digitalWrite(testLeds[i], LOW);
 
   // 1. Initialize OLED on default I2C (GPIO 21, 22)
   Wire.begin(OLED_SDA, OLED_SCL);
@@ -353,8 +406,9 @@ void loop() {
     lastSampleTime = millis();
   }
 
-  // 4. Non-blocking Buzzer Alert State Update
+  // 4. Non-blocking Buzzer and 6-LED Severity Ladder Update
   updateBuzzer(currentSysStatus);
+  updateLEDs(latestTotalRms, currentSysStatus);
 
   // 5. Update Local SH1106 OLED Display (4 Hz refresh, smooth & non-blocking)
   if (currentMillis - lastDisplayTime >= displayInterval) {
