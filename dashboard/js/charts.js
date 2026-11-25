@@ -11,6 +11,8 @@ class EdgeSenseCharts {
     this.overviewTemperatureChart = null;
 
     this.selectedTimeRangeMin = 5; // default 5 minutes
+    this.scrollOffsetSec = 0;      // 0 = live stream; > 0 = viewing history seconds in the past
+    this.maxScrollSec = 3600;      // Allow up to 60 minutes historical scrollback
     this.isPaused = false;
 
     // Axis visibility toggles
@@ -51,9 +53,18 @@ class EdgeSenseCharts {
 
   formatTimeLabel(timestamp) {
     const d = new Date(timestamp);
+    const h = String(d.getHours()).padStart(2, '0');
     const m = String(d.getMinutes()).padStart(2, '0');
     const s = String(d.getSeconds()).padStart(2, '0');
-    return `${m}:${s}`;
+    return this.selectedTimeRangeMin >= 60 ? `${h}:${m}` : `${m}:${s}`;
+  }
+
+  formatFullTime(timestamp) {
+    const d = new Date(timestamp);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const s = String(d.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
   }
 
   /**
@@ -414,13 +425,15 @@ class EdgeSenseCharts {
   updateCharts(latestReading) {
     if (this.isPaused) return;
 
-    // Refresh history based on active time range
-    const history = window.edgeSenseDataService.getHistory(this.selectedTimeRangeMin);
+    // Refresh history based on active time range and historical scroll offset
+    const history = window.edgeSenseDataService.getHistory(this.selectedTimeRangeMin, this.scrollOffsetSec);
     const labels = history.map(h => this.formatTimeLabel(h.timestamp));
 
-    // Update Overview Vibration Chart if exists
+    this.updateScrubberUI(history);
+
+    // Update Overview Vibration Chart if exists (Always pinned to live 15m)
     if (this.overviewVibrationChart) {
-      const overviewHistory = window.edgeSenseDataService.getHistory(15);
+      const overviewHistory = window.edgeSenseDataService.getHistory(15, 0);
       const oLabels = overviewHistory.map(h => this.formatTimeLabel(h.timestamp));
       const oVib = overviewHistory.map(h => (typeof h.vibrationRMS === 'number' ? h.vibrationRMS : 0.0));
       const warnVib = window.edgeSenseDataService.vibrationWarn || 0.35;
@@ -433,9 +446,9 @@ class EdgeSenseCharts {
       this.overviewVibrationChart.update('none');
     }
 
-    // Update Overview Temperature Chart if exists
+    // Update Overview Temperature Chart if exists (Always pinned to live 15m)
     if (this.overviewTemperatureChart) {
-      const overviewHistory = window.edgeSenseDataService.getHistory(15);
+      const overviewHistory = window.edgeSenseDataService.getHistory(15, 0);
       const oLabels = overviewHistory.map(h => this.formatTimeLabel(h.timestamp));
       const oTemp = overviewHistory.map(h => (typeof h.temperature === 'number' ? h.temperature : 0.0));
       const warnTemp = window.edgeSenseDataService.tempWarn || 45.0;
@@ -448,7 +461,7 @@ class EdgeSenseCharts {
       this.overviewTemperatureChart.update('none');
     }
 
-    // Update Vibration Analytics Chart
+    // Update Vibration Analytics Chart (Supports Historical Scrubbing)
     if (this.vibrationChart) {
       const warnThreshold = window.edgeSenseDataService.vibrationWarn;
       const critThreshold = window.edgeSenseDataService.vibrationCrit;
@@ -465,7 +478,7 @@ class EdgeSenseCharts {
       this.vibrationChart.update('none');
     }
 
-    // Update Temperature Analytics Chart
+    // Update Temperature Analytics Chart (Supports Historical Scrubbing)
     if (this.temperatureChart) {
       const warnThreshold = window.edgeSenseDataService.tempWarn;
       const critThreshold = window.edgeSenseDataService.tempCrit;
@@ -476,6 +489,61 @@ class EdgeSenseCharts {
       this.temperatureChart.data.datasets[2].data = history.map(() => critThreshold);
       this.temperatureChart.update('none');
     }
+  }
+
+  /**
+   * Synchronizes timeline scrubber UI controls with active viewing window
+   */
+  updateScrubberUI(history) {
+    const slider = document.getElementById('timelineRangeSlider');
+    const statusPill = document.getElementById('scrubberStatusPill');
+    const statusText = document.getElementById('scrubberStatusText');
+    const dot = document.getElementById('scrubberLiveDot');
+    const snapBtn = document.getElementById('scrubberSnapLive');
+    const card = document.getElementById('timelineScrubberCard');
+    const winStart = document.getElementById('scrubberWindowStart');
+    const winEnd = document.getElementById('scrubberWindowEnd');
+
+    if (slider && !this.isUserDraggingSlider) {
+      slider.value = this.scrollOffsetSec;
+    }
+
+    const isLive = this.scrollOffsetSec <= 2;
+
+    if (statusPill && statusText && dot) {
+      if (isLive) {
+        statusPill.className = 'scrubber-status-pill live';
+        dot.className = 'status-dot healthy pulse';
+        statusText.textContent = 'LIVE STREAM (REAL-TIME)';
+        if (card) card.classList.remove('scrubbing-active');
+        if (snapBtn) snapBtn.classList.add('active');
+      } else {
+        statusPill.className = 'scrubber-status-pill history';
+        dot.className = 'status-dot warning';
+        const mins = (this.scrollOffsetSec / 60).toFixed(this.scrollOffsetSec % 60 === 0 ? 0 : 1);
+        statusText.textContent = `⏮ VIEWING HISTORY (${mins}m ago)`;
+        if (card) card.classList.add('scrubbing-active');
+        if (snapBtn) snapBtn.classList.remove('active');
+      }
+    }
+
+    if (history && history.length >= 2) {
+      if (winStart) winStart.textContent = this.formatFullTime(history[0].timestamp);
+      if (winEnd) winEnd.textContent = this.formatFullTime(history[history.length - 1].timestamp);
+    }
+  }
+
+  setScrollOffset(sec) {
+    this.scrollOffsetSec = Math.max(0, Math.min(sec, this.maxScrollSec));
+    this.updateCharts();
+  }
+
+  stepScrollOffset(deltaSec) {
+    this.setScrollOffset(this.scrollOffsetSec + deltaSec);
+  }
+
+  snapToLive() {
+    this.setScrollOffset(0);
   }
 
   setTimeRange(minutes) {
@@ -504,7 +572,7 @@ class EdgeSenseCharts {
   }
 
   exportHistoryCSV() {
-    const history = window.edgeSenseDataService.getHistory(this.selectedTimeRangeMin);
+    const history = window.edgeSenseDataService.getHistory(this.selectedTimeRangeMin, this.scrollOffsetSec);
     if (!history.length) return;
 
     let csv = 'Timestamp,ISO_Time,Machine_ID,Vibration_RMS_g,X_RMS_g,Y_RMS_g,Z_RMS_g,Temp_C,Status,Mode\n';
@@ -531,6 +599,78 @@ class EdgeSenseCharts {
         e.currentTarget.classList.add('active');
         const min = parseInt(e.currentTarget.dataset.timeRange, 10);
         this.setTimeRange(min);
+      });
+    });
+
+    // Timeline Scrubber Slider
+    const slider = document.getElementById('timelineRangeSlider');
+    if (slider) {
+      slider.addEventListener('mousedown', () => { this.isUserDraggingSlider = true; });
+      slider.addEventListener('touchstart', () => { this.isUserDraggingSlider = true; }, { passive: true });
+      slider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        this.setScrollOffset(val);
+      });
+      slider.addEventListener('change', () => { this.isUserDraggingSlider = false; });
+      slider.addEventListener('mouseup', () => { this.isUserDraggingSlider = false; });
+      slider.addEventListener('touchend', () => { this.isUserDraggingSlider = false; });
+    }
+
+    // Timeline Scrubber Step Buttons
+    const btnRewind5m = document.getElementById('scrubberRewind5m');
+    const btnRewind1m = document.getElementById('scrubberRewind1m');
+    const btnRewind15s = document.getElementById('scrubberRewind15s');
+    const btnFwd15s = document.getElementById('scrubberFwd15s');
+    const btnFwd1m = document.getElementById('scrubberFwd1m');
+    const btnFwd5m = document.getElementById('scrubberFwd5m');
+    const btnSnapLive = document.getElementById('scrubberSnapLive');
+
+    if (btnRewind5m) btnRewind5m.addEventListener('click', () => this.stepScrollOffset(300));
+    if (btnRewind1m) btnRewind1m.addEventListener('click', () => this.stepScrollOffset(60));
+    if (btnRewind15s) btnRewind15s.addEventListener('click', () => this.stepScrollOffset(15));
+    if (btnFwd15s) btnFwd15s.addEventListener('click', () => this.stepScrollOffset(-15));
+    if (btnFwd1m) btnFwd1m.addEventListener('click', () => this.stepScrollOffset(-60));
+    if (btnFwd5m) btnFwd5m.addEventListener('click', () => this.stepScrollOffset(-300));
+    if (btnSnapLive) btnSnapLive.addEventListener('click', () => this.snapToLive());
+
+    // Mouse Wheel Scroll & Drag-to-Pan on Graph Canvases
+    ['vibrationAnalyticsChart', 'temperatureAnalyticsChart'].forEach(canvasId => {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+
+      // Mouse wheel scrubbing: Wheel down = back in time; Wheel up = forward towards live
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const step = (this.selectedTimeRangeMin <= 1) ? 10 : (this.selectedTimeRangeMin <= 5 ? 20 : 60);
+        const dir = e.deltaY > 0 ? 1 : -1;
+        this.stepScrollOffset(dir * step);
+      }, { passive: false });
+
+      // Click-and-drag horizontal timeline panning
+      let isDragging = false;
+      let startX = 0;
+      let startOffset = 0;
+
+      canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startOffset = this.scrollOffsetSec;
+        canvas.style.cursor = 'grabbing';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const secPerPixel = (this.selectedTimeRangeMin * 60) / (canvas.clientWidth || 600);
+        const deltaSec = Math.round(-dx * secPerPixel);
+        this.setScrollOffset(startOffset + deltaSec);
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          canvas.style.cursor = 'default';
+        }
       });
     });
 

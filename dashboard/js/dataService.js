@@ -37,9 +37,9 @@ class EdgeSenseDataService {
       lastCalibrationDate: '2026-11-01 09:30'
     };
 
-    // Buffer for historical analytics (stores up to 1 hour @ 1-second intervals = 3600 items max)
+    // Buffer for historical analytics (stores up to 2 hours @ 1-second intervals = 7200 items max)
     this.historyBuffer = [];
-    this.maxHistorySize = 3600;
+    this.maxHistorySize = 7200;
 
     // Subscribed listeners
     this.subscribers = new Set();
@@ -48,7 +48,7 @@ class EdgeSenseDataService {
     // Latest state snapshot
     this.latestSnapshot = null;
 
-    // Pre-populate with realistic 30-minute demonstration history so graphs have rich visual data immediately upon load
+    // Pre-populate with realistic 60-minute demonstration history so graphs have rich visual data immediately upon load
     this.seedInitialHistory();
   }
 
@@ -132,6 +132,36 @@ class EdgeSenseDataService {
     // Immediate first tick
     this.tick();
     this.timerId = setInterval(() => this.tick(), this.pollingIntervalMs);
+    // Asynchronously pull historical 60-minute points from cloud backend if available
+    this.syncRemoteHistory();
+  }
+
+  /**
+   * Syncs historical readings from the Render cloud database to populate full 60-minute buffer
+   */
+  async syncRemoteHistory() {
+    if (this.mode !== 'HARDWARE') return;
+    try {
+      const historyUrl = this.endpointUrl.replace('/latest', '/history') + '?minutes=60';
+      const resp = await fetch(historyUrl, { headers: { 'Accept': 'application/json' } });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (Array.isArray(json.points) && json.points.length > 0) {
+          const existingTimestamps = new Set(this.historyBuffer.map(p => p.timestamp));
+          const newPoints = json.points.filter(p => !existingTimestamps.has(p.timestamp));
+          this.historyBuffer.push(...newPoints);
+          this.historyBuffer.sort((a, b) => a.timestamp - b.timestamp);
+          if (this.historyBuffer.length > this.maxHistorySize) {
+            this.historyBuffer = this.historyBuffer.slice(-this.maxHistorySize);
+          }
+          if (window.edgeSenseCharts) {
+            window.edgeSenseCharts.updateCharts();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[EdgeSense DataService] Remote history sync notice:', e.message);
+    }
   }
 
   stop() {
@@ -454,10 +484,10 @@ class EdgeSenseDataService {
   }
 
   /**
-   * Generates a 30-minute historical buffer for instant graph populating
+   * Generates a 60-minute historical buffer for instant graph populating and scrollback exploration
    */
   seedInitialHistory() {
-    const points = 180; // 180 points spanning 30 minutes (every 10 seconds)
+    const points = 360; // 360 points spanning 60 minutes (every 10 seconds)
     const now = Date.now();
     const intervalMs = 10000;
     const isHw = this.mode === 'HARDWARE';
@@ -482,9 +512,10 @@ class EdgeSenseDataService {
       } else {
         const wave = Math.sin(t / 80000);
         const noise = (Math.sin(t / 5000) * 0.015) + ((Math.random() - 0.5) * 0.01);
-        const spike = (i > 65 && i < 75) ? 0.22 : 0;
+        // Realistic intermittent spikes across the hour (at ~12m, ~28m, and ~48m ago)
+        const spike = (i > 65 && i < 76) ? 0.24 : ((i > 165 && i < 178) ? 0.38 : ((i > 280 && i < 290) ? 0.18 : 0));
         const rms = parseFloat((0.082 + wave * 0.01 + noise + spike).toFixed(3));
-        const temp = parseFloat((32.8 + wave * 0.8 + (i > 65 && i < 75 ? 2.5 : 0) + (Math.random() * 0.2)).toFixed(2));
+        const temp = parseFloat((32.8 + wave * 0.8 + (spike > 0 ? 3.2 : 0) + (Math.random() * 0.2)).toFixed(2));
 
         this.historyBuffer.push({
           machineId: 'MOTOR_01',
@@ -495,7 +526,7 @@ class EdgeSenseDataService {
           baselineRMS: 0.080,
           temperature: temp,
           timestamp: t,
-          anomalyScore: spike > 0 ? 2.1 : 0.3,
+          anomalyScore: spike > 0 ? 2.3 : 0.3,
           esp32Connected: false,
           mode: 'DEMO'
         });
@@ -503,17 +534,24 @@ class EdgeSenseDataService {
     }
   }
 
-  getHistory(minutes = 30) {
-    const cutoff = Date.now() - (minutes * 60 * 1000);
-    const filtered = this.historyBuffer.filter(pt => pt.timestamp >= cutoff);
+  /**
+   * Retrieves historical points for a time window [now - endOffsetSec - minutes, now - endOffsetSec]
+   * Allows scrubbing/scrolling backward into past telemetry at high zoom resolution.
+   */
+  getHistory(minutes = 30, endOffsetSec = 0) {
+    const now = Date.now();
+    const offsetSec = Math.max(0, Number(endOffsetSec) || 0);
+    const endCutoff = now - (offsetSec * 1000);
+    const startCutoff = endCutoff - (minutes * 60 * 1000);
+
+    const filtered = this.historyBuffer.filter(pt => pt.timestamp >= startCutoff && pt.timestamp <= endCutoff);
     if (filtered.length >= 2) return filtered;
 
     // Fallback: If buffer doesn't have sufficient points, supply baseline 0.0 points
-    // so a continuous line at 0.0 is always drawn from 15 minutes ago to now
-    const now = Date.now();
-    const interval = Math.max(10000, Math.floor((minutes * 60 * 1000) / 18));
+    // so a continuous line at 0.0 is always drawn from startCutoff to endCutoff
+    const interval = Math.max(1000, Math.floor((minutes * 60 * 1000) / 24));
     const fallback = [];
-    for (let t = cutoff; t <= now; t += interval) {
+    for (let t = startCutoff; t <= endCutoff; t += interval) {
       fallback.push({
         machineId: 'MOTOR_01',
         vibrationRMS: 0.0,
@@ -521,7 +559,9 @@ class EdgeSenseDataService {
         xRMS: 0.0,
         yRMS: 0.0,
         zRMS: 0.0,
+        baselineRMS: 0.080,
         timestamp: t,
+        anomalyScore: 0.0,
         esp32Connected: false,
         mode: this.mode
       });

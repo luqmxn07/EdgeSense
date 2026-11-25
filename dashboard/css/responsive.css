@@ -57,6 +57,18 @@
     align-items: flex-start;
   }
 
+  .timeline-scrubber-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .scrubber-left-group,
+  .scrubber-right-group {
+    justify-content: space-between;
+    width: 100%;
+  }
+
   .analytics-actions {
     width: 100%;
     justify-content: flex-end;

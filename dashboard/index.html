@@ -634,6 +634,75 @@
             </div>
           </div>
 
+          <!-- Timeline Scrubber & Historical Scrollback Control -->
+          <div class="timeline-scrubber-card" id="timelineScrubberCard">
+            <div class="scrubber-left-group">
+              <div class="scrubber-title-pill">
+                <i data-lucide="history"></i>
+                <span>Timeline Scrubber</span>
+              </div>
+              <div class="scrubber-step-group">
+                <button class="scrubber-step-btn" id="scrubberRewind5m" title="Scroll back 5 minutes (-5m)">
+                  <i data-lucide="chevrons-left"></i>
+                  <span>-5m</span>
+                </button>
+                <button class="scrubber-step-btn" id="scrubberRewind1m" title="Scroll back 1 minute (-1m)">
+                  <i data-lucide="chevron-left"></i>
+                  <span>-1m</span>
+                </button>
+                <button class="scrubber-step-btn" id="scrubberRewind15s" title="Scroll back 15 seconds (-15s)">
+                  <i data-lucide="rotate-ccw"></i>
+                  <span>-15s</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="scrubber-slider-col">
+              <div class="scrubber-slider-header">
+                <span class="scrubber-time-edge" id="scrubberOldestTime">-60m</span>
+                <div class="scrubber-status-pill live" id="scrubberStatusPill">
+                  <span class="status-dot healthy pulse" id="scrubberLiveDot"></span>
+                  <span id="scrubberStatusText">LIVE STREAM (REAL-TIME)</span>
+                </div>
+                <span class="scrubber-time-edge" id="scrubberLiveTime">Live (0s)</span>
+              </div>
+
+              <div class="scrubber-slider-track-wrap">
+                <input type="range" class="timeline-range-slider" id="timelineRangeSlider" min="0" max="3600" value="0" step="5" title="Drag to scrub back in time across the last 60 minutes">
+              </div>
+
+              <div class="scrubber-slider-footer">
+                <span class="scrubber-window-label" id="scrubberWindowStart">--:--</span>
+                <span class="scrubber-hint-label">
+                  <i data-lucide="mouse-pointer" style="width: 12px; height: 12px;"></i>
+                  <span>Drag slider or scroll mouse wheel on graph to pan through history</span>
+                </span>
+                <span class="scrubber-window-label" id="scrubberWindowEnd">--:--</span>
+              </div>
+            </div>
+
+            <div class="scrubber-right-group">
+              <div class="scrubber-step-group">
+                <button class="scrubber-step-btn" id="scrubberFwd15s" title="Advance forward 15 seconds (+15s)">
+                  <span>+15s</span>
+                  <i data-lucide="rotate-cw"></i>
+                </button>
+                <button class="scrubber-step-btn" id="scrubberFwd1m" title="Advance forward 1 minute (+1m)">
+                  <span>+1m</span>
+                  <i data-lucide="chevron-right"></i>
+                </button>
+                <button class="scrubber-step-btn" id="scrubberFwd5m" title="Advance forward 5 minutes (+5m)">
+                  <span>+5m</span>
+                  <i data-lucide="chevrons-right"></i>
+                </button>
+              </div>
+              <button class="scrubber-snap-live-btn active" id="scrubberSnapLive" title="Snap to real-time live stream">
+                <i data-lucide="radio"></i>
+                <span>Snap to Live</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Vibration Chart Card -->
           <div class="chart-container-card">
             <div class="chart-header-row">
