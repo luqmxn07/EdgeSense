@@ -51,12 +51,16 @@ class EdgeSenseCharts {
     this.setupEventListeners();
   }
 
+  /**
+   * Formats timestamps into 24-hour real-time clock labels (HH:MM:SS)
+   * Ensures every axis tick and tooltip shows the actual real-world time.
+   */
   formatTimeLabel(timestamp) {
     const d = new Date(timestamp);
     const h = String(d.getHours()).padStart(2, '0');
     const m = String(d.getMinutes()).padStart(2, '0');
     const s = String(d.getSeconds()).padStart(2, '0');
-    return this.selectedTimeRangeMin >= 60 ? `${h}:${m}` : `${m}:${s}`;
+    return `${h}:${m}:${s}`;
   }
 
   formatFullTime(timestamp) {
